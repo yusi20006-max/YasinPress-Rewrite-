@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yasinpress-rewrite"
+version = "1.0.0"
+description = "Production-ready clean architecture news aggregation, AI enrichment, and publishing platform."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "MIT"
+authors = [{name = "YasinPress maintainers"}]
+dependencies = ["PyYAML>=6.0.2", "httpx>=0.27.0", "feedparser>=6.0.11"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2", "ruff>=0.5.0", "mypy>=1.10"]
+
+[project.scripts]
+yasinpress = "yasinpress.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["yasinpress*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
