@@ -1,0 +1,19 @@
+name: Actions Probe
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report runner
+        run: |
+          echo "GitHub Actions runtime is active"
+          echo "Runner: $RUNNER_OS"
+          echo "Architecture: $RUNNER_ARCH"
+          echo "Event: $GITHUB_EVENT_NAME"
