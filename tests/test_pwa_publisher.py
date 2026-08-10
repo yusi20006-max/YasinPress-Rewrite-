@@ -1,0 +1,37 @@
+from datetime import datetime, timezone
+import json
+
+from yasinpress.database.models import Article
+from yasinpress.publishing.pwa import PWAPublisher
+
+
+def test_pwa_render_is_valid_json_and_preserves_article_fields():
+    article = Article(
+        id="1",
+        title="خبر تست",
+        url="https://example.com/1",
+        content="محتوای خبر",
+        source="test",
+        published_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        category="technology",
+    )
+    payload = json.loads(PWAPublisher().render(article))
+    assert payload["id"] == "1"
+    assert payload["title"] == "خبر تست"
+    assert payload["category"] == "technology"
+    assert payload["published_at"].startswith("2026-01-01")
+
+
+def test_pwa_publish_returns_delivery_result():
+    article = Article(
+        id="1",
+        title="خبر",
+        url="https://example.com/1",
+        content="محتوا",
+        source="test",
+        published_at=datetime.now(timezone.utc),
+    )
+    result = PWAPublisher().publish(article)
+    assert result.success
+    assert result.destination == "pwa"
+    assert result.external_id == "1"
