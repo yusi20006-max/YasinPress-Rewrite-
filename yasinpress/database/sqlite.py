@@ -16,13 +16,9 @@ class SQLiteArticleRepository:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute(
             """CREATE TABLE IF NOT EXISTS articles (
-                id TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                url TEXT NOT NULL,
-                content TEXT NOT NULL,
-                source TEXT NOT NULL,
-                published_at TEXT NOT NULL,
-                category TEXT
+                id TEXT PRIMARY KEY, title TEXT NOT NULL, url TEXT NOT NULL,
+                content TEXT NOT NULL, source TEXT NOT NULL,
+                published_at TEXT NOT NULL, category TEXT
             )"""
         )
         self.connection.commit()
@@ -30,11 +26,9 @@ class SQLiteArticleRepository:
     def save(self, article: Article) -> None:
         self.connection.execute(
             """INSERT INTO articles(id,title,url,content,source,published_at,category)
-               VALUES(?,?,?,?,?,?,?)
-               ON CONFLICT(id) DO UPDATE SET
-                 title=excluded.title, url=excluded.url, content=excluded.content,
-                 source=excluded.source, published_at=excluded.published_at,
-                 category=excluded.category""",
+               VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+               title=excluded.title,url=excluded.url,content=excluded.content,
+               source=excluded.source,published_at=excluded.published_at,category=excluded.category""",
             (article.id, article.title, article.url, article.content, article.source,
              article.published_at.isoformat(), article.category),
         )
@@ -60,17 +54,20 @@ class SQLiteArticleRepository:
 
 
 class SQLiteRepositories:
-    """Composition point sharing one SQLite connection across persistent state."""
+    """Composition point sharing one SQLite connection across all durable state."""
 
     def __init__(self, path: str = ":memory:") -> None:
         from yasinpress.database.delivery import SQLiteDeliveryRepository
         from yasinpress.database.jobs import SQLiteJobRepository
+        from yasinpress.publishing.sqlite_state import SQLiteDeliveryHistory, SQLiteIdempotencyStore
 
         self.connection = sqlite3.connect(path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self.articles = SQLiteArticleRepository(connection=self.connection)
         self.jobs = SQLiteJobRepository(self.connection)
         self.deliveries = SQLiteDeliveryRepository(self.connection)
+        self.delivery_history = SQLiteDeliveryHistory(self.connection)
+        self.idempotency = SQLiteIdempotencyStore(self.connection)
 
     def close(self) -> None:
         self.connection.close()
