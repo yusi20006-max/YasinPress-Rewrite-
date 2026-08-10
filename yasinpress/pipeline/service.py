@@ -8,6 +8,7 @@ from yasinpress.database.models import Article
 from yasinpress.pipeline.runtime import ArticlePipeline, PipelineResult
 from yasinpress.publishing import PublishResult, Publisher
 from yasinpress.publishing.orchestrator import PublishReport, PublishingOrchestrator
+from yasinpress.publishing.reliability import RetryPolicy
 from yasinpress.sources.feed import FeedItem
 
 
@@ -20,10 +21,15 @@ class ProcessingReport:
 class ProcessingService:
     """Application service joining deterministic processing, optional AI, and publishing."""
 
-    def __init__(self, *, source: str, ai: AIProvider | None = None, publishers: Iterable[Publisher] = ()) -> None:
+    def __init__(self, *, source: str, ai: AIProvider | None = None,
+                 publishers: Iterable[Publisher] = (), history=None, idempotency=None,
+                 retry_policy: RetryPolicy | None = None) -> None:
         self.ai = ai
         self.pipeline = ArticlePipeline(source)
-        self.publisher = PublishingOrchestrator(tuple(publishers))
+        self.publisher = PublishingOrchestrator(
+            tuple(publishers), retry_policy=retry_policy,
+            history=history, idempotency=idempotency,
+        )
 
     def process(self, items: Iterable[FeedItem]) -> ProcessingReport:
         result = self.pipeline.process(items)
@@ -34,7 +40,9 @@ class ProcessingService:
                 continue
             enriched = self.ai.enrich(article)
             if enriched.success:
-                articles.append(Article(id=article.id, title=enriched.title, url=article.url, content=enriched.content, source=article.source, published_at=article.published_at, category=article.category))
+                articles.append(Article(id=article.id, title=enriched.title, url=article.url,
+                                        content=enriched.content, source=article.source,
+                                        published_at=article.published_at, category=article.category))
             else:
                 articles.append(article)
 
