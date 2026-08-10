@@ -8,6 +8,7 @@ from yasinpress.database.models import Article
 from yasinpress.database.sqlite import SQLiteArticleRepository, SQLiteRepositories
 from yasinpress.pipeline.service import ProcessingReport, ProcessingService
 from yasinpress.publishing import Publisher
+from yasinpress.publishing.reliability import RetryPolicy
 from yasinpress.sources.feed import FeedItem
 
 
@@ -22,7 +23,7 @@ class YasinPressApplication:
 
     def __init__(self, *, source: str = "rss", ai: AIProvider | None = None,
                  publishers: Iterable[Publisher] = (), repository: SQLiteArticleRepository | None = None,
-                 repositories: SQLiteRepositories | None = None) -> None:
+                 repositories: SQLiteRepositories | None = None, retry_policy: RetryPolicy | None = None) -> None:
         self.repositories = repositories
         if repository is not None:
             self.repository = repository
@@ -30,7 +31,12 @@ class YasinPressApplication:
             self.repository = repositories.articles
         else:
             self.repository = SQLiteArticleRepository()
-        self.processing = ProcessingService(source=source, ai=ai, publishers=publishers)
+        self.processing = ProcessingService(
+            source=source, ai=ai, publishers=publishers,
+            history=repositories.delivery_history if repositories else None,
+            idempotency=repositories.idempotency if repositories else None,
+            retry_policy=retry_policy,
+        )
 
     def process_items(self, items: Iterable[FeedItem]) -> ApplicationReport:
         report = self.processing.process(items)
