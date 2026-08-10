@@ -24,10 +24,14 @@ class ReliablePublisher:
         self.publisher = publisher
         self.policy = policy or RetryPolicy()
         self.sleeper = sleeper
+        self.attempts = 0
 
     def publish(self, article: Article) -> PublishResult:
+        self.attempts = 0
         last: PublishResult | None = None
-        for attempt in range(1, max(1, self.policy.max_attempts) + 1):
+        max_attempts = max(1, self.policy.max_attempts)
+        for attempt in range(1, max_attempts + 1):
+            self.attempts = attempt
             try:
                 result = self.publisher.publish(article)
             except Exception as exc:
@@ -35,6 +39,6 @@ class ReliablePublisher:
             last = result
             if result.success:
                 return result
-            if attempt < self.policy.max_attempts:
+            if attempt < max_attempts:
                 self.sleeper(self.policy.delay(attempt))
         return last or PublishResult(False, self.publisher.name, external_id=article.id, error="publish failed")
