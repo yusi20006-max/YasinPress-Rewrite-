@@ -8,10 +8,11 @@ from yasinpress.database.models import Article
 
 
 class SQLiteArticleRepository:
-    """Small persistence adapter for normalized Article records."""
+    """Persistence adapter for normalized Article records."""
 
-    def __init__(self, path: str = ":memory:") -> None:
-        self.connection = sqlite3.connect(path)
+    def __init__(self, path: str = ":memory:", connection: sqlite3.Connection | None = None) -> None:
+        self._owns_connection = connection is None
+        self.connection = connection or sqlite3.connect(path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self.connection.execute(
             """CREATE TABLE IF NOT EXISTS articles (
@@ -54,4 +55,5 @@ class SQLiteArticleRepository:
         return tuple(Article(r["id"], r["title"], r["url"], r["content"], r["source"], datetime.fromisoformat(r["published_at"]), r["category"]) for r in rows)
 
     def close(self) -> None:
-        self.connection.close()
+        if self._owns_connection:
+            self.connection.close()
