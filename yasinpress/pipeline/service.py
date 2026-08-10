@@ -5,6 +5,7 @@ from typing import Iterable
 
 from yasinpress.ai.base import AIProvider
 from yasinpress.database.models import Article
+from yasinpress.pipeline.dedup import unique_items
 from yasinpress.pipeline.runtime import ArticlePipeline, PipelineResult
 from yasinpress.publishing import PublishResult, Publisher
 from yasinpress.publishing.orchestrator import PublishReport, PublishingOrchestrator
@@ -32,7 +33,7 @@ class ProcessingService:
         )
 
     def process(self, items: Iterable[FeedItem]) -> ProcessingReport:
-        result = self.pipeline.process(items)
+        result = self.pipeline.process(unique_items(items))
         articles: list[Article] = []
         for article in result.articles:
             if self.ai is None:
