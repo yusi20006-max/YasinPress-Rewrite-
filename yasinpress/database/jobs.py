@@ -11,6 +11,7 @@ class SQLiteJobRepository:
 
     def __init__(self, connection: sqlite3.Connection) -> None:
         self.connection = connection
+        self.connection.row_factory = sqlite3.Row
         self.connection.execute(
             """CREATE TABLE IF NOT EXISTS jobs (
                 id TEXT PRIMARY KEY,
@@ -42,6 +43,14 @@ class SQLiteJobRepository:
         row = self.connection.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
         if row is None:
             return None
+        return self._from_row(row)
+
+    def all(self) -> tuple[Job, ...]:
+        rows = self.connection.execute("SELECT * FROM jobs ORDER BY created_at").fetchall()
+        return tuple(self._from_row(row) for row in rows)
+
+    @staticmethod
+    def _from_row(row: sqlite3.Row) -> Job:
         return Job(
             id=row["id"], name=row["name"], status=JobStatus(row["status"]),
             attempts=row["attempts"], created_at=datetime.fromisoformat(row["created_at"]),
