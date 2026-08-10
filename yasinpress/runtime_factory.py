@@ -6,9 +6,11 @@ from typing import Iterable
 from yasinpress.config.runtime import RuntimeConfig
 from yasinpress.database.sqlite import SQLiteRepositories
 from yasinpress.fetch.feed import FeedFetcher
+from yasinpress.health import check_database
 from yasinpress.pipeline.application import YasinPressApplication
 from yasinpress.publishing import Publisher
 from yasinpress.publishing.reliability import RetryPolicy
+from yasinpress.recovery import recover_jobs
 from yasinpress.runtime import Runtime
 from yasinpress.scheduler.application_job import PipelineJobFactory
 from yasinpress.scheduler.queue import JobQueue
@@ -40,6 +42,12 @@ def build_runtime(*, config: RuntimeConfig | None = None, ai=None,
     cfg = config or RuntimeConfig.from_env()
     cfg.validate()
     database = SQLiteRepositories(cfg.database_path)
+    health = check_database(database.connection)
+    if not health.ok:
+        database.close()
+        raise RuntimeError(f"database readiness check failed: {health.message}")
+
+    recovery = recover_jobs(database.jobs, database.jobs.all())
     application = YasinPressApplication(
         source=cfg.feed_source, ai=ai, publishers=publishers,
         repositories=database,
