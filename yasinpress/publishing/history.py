@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 
@@ -12,7 +12,7 @@ class DeliveryRecord:
     attempts: int
     external_id: str | None = None
     error: str | None = None
-    created_at: datetime = datetime.now(timezone.utc)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class InMemoryDeliveryHistory:
