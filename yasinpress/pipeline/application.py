@@ -5,7 +5,7 @@ from typing import Iterable
 
 from yasinpress.ai.base import AIProvider
 from yasinpress.database.models import Article
-from yasinpress.database.sqlite import SQLiteArticleRepository
+from yasinpress.database.sqlite import SQLiteArticleRepository, SQLiteRepositories
 from yasinpress.pipeline.service import ProcessingReport, ProcessingService
 from yasinpress.publishing import Publisher
 
@@ -17,10 +17,23 @@ class ApplicationReport:
 
 
 class YasinPressApplication:
-    """Composition root for the feed-to-AI-to-persistence-to-publishing path."""
+    """Composition root for feed → AI → persistence → publishing."""
 
-    def __init__(self, *, ai: AIProvider | None = None, publishers: Iterable[Publisher] = (), repository: SQLiteArticleRepository | None = None) -> None:
-        self.repository = repository or SQLiteArticleRepository()
+    def __init__(
+        self,
+        *,
+        ai: AIProvider | None = None,
+        publishers: Iterable[Publisher] = (),
+        repository: SQLiteArticleRepository | None = None,
+        repositories: SQLiteRepositories | None = None,
+    ) -> None:
+        self.repositories = repositories
+        if repository is not None:
+            self.repository = repository
+        elif repositories is not None:
+            self.repository = repositories.articles
+        else:
+            self.repository = SQLiteArticleRepository()
         self.processing = ProcessingService(ai=ai, publishers=publishers)
 
     def process_items(self, items: Iterable[object]) -> ApplicationReport:
@@ -32,4 +45,7 @@ class YasinPressApplication:
         return self.repository.get(article_id)
 
     def close(self) -> None:
-        self.repository.close()
+        if self.repositories is not None:
+            self.repositories.close()
+        else:
+            self.repository.close()
