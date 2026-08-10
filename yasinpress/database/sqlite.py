@@ -57,3 +57,20 @@ class SQLiteArticleRepository:
     def close(self) -> None:
         if self._owns_connection:
             self.connection.close()
+
+
+class SQLiteRepositories:
+    """Composition point sharing one SQLite connection across persistent state."""
+
+    def __init__(self, path: str = ":memory:") -> None:
+        from yasinpress.database.delivery import SQLiteDeliveryRepository
+        from yasinpress.database.jobs import SQLiteJobRepository
+
+        self.connection = sqlite3.connect(path, check_same_thread=False)
+        self.connection.row_factory = sqlite3.Row
+        self.articles = SQLiteArticleRepository(connection=self.connection)
+        self.jobs = SQLiteJobRepository(self.connection)
+        self.deliveries = SQLiteDeliveryRepository(self.connection)
+
+    def close(self) -> None:
+        self.connection.close()
