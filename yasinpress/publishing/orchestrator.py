@@ -23,15 +23,15 @@ class PublishReport:
 
 
 class PublishingOrchestrator:
-    """Coordinate independent destinations with retry, history, and idempotency."""
+    """Coordinate independent destinations with retry, durable history, and idempotency."""
 
     def __init__(
         self,
         publishers: list[Publisher] | tuple[Publisher, ...] = (),
         *,
         retry_policy: RetryPolicy | None = None,
-        history: InMemoryDeliveryHistory | None = None,
-        idempotency: IdempotencyStore | None = None,
+        history=None,
+        idempotency=None,
     ) -> None:
         self.publishers = tuple(ReliablePublisher(publisher, retry_policy) for publisher in publishers)
         self.history = history or InMemoryDeliveryHistory()
@@ -44,19 +44,13 @@ class PublishingOrchestrator:
             if self.idempotency.seen(key):
                 results.append(PublishResult(True, publisher.publisher.name, external_id=article.id))
                 continue
-
             result = publisher.publish(article)
             results.append(result)
-            self.history.add(
-                DeliveryRecord(
-                    article_id=article.id,
-                    destination=result.destination,
-                    success=result.success,
-                    attempts=publisher.attempts,
-                    external_id=result.external_id,
-                    error=result.error,
-                )
-            )
+            self.history.add(DeliveryRecord(
+                article_id=article.id, destination=result.destination,
+                success=result.success, attempts=publisher.attempts,
+                external_id=result.external_id, error=result.error,
+            ))
             if result.success:
                 self.idempotency.mark(key)
         return PublishReport(tuple(results))
