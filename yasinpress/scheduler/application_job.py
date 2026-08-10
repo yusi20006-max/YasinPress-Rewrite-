@@ -9,7 +9,7 @@ from yasinpress.scheduler.worker import Worker
 
 
 class PipelineJobFactory:
-    """Turns parsed feed items into executable scheduler jobs."""
+    """Turns feed items or URLs into executable scheduler jobs."""
 
     def __init__(self, app: YasinPressApplication, worker: Worker | None = None) -> None:
         self.app = app
@@ -19,8 +19,7 @@ class PipelineJobFactory:
         materialized = tuple(items)
         from yasinpress.scheduler.jobs import new_job
         job = new_job("process-feed")
-        self.worker.submit(job, lambda: self.app.process_items(materialized))
-        return job
+        return self.worker.submit(job, lambda: self.app.process_items(materialized))
 
     def submit_urls(self, urls: tuple[str, ...], *, fetcher: FeedFetcher | None = None) -> Job:
         feed_fetcher = fetcher or FeedFetcher()
@@ -32,8 +31,7 @@ class PipelineJobFactory:
             items = tuple(item for result in results for item in result.items)
             self.app.process_items(items)
 
-        self.worker.submit(job, execute)
-        return job
+        return self.worker.submit(job, execute)
 
     def run_once(self) -> Job | None:
         return self.worker.run_once()
