@@ -6,25 +6,26 @@ from typing import Iterable
 from yasinpress.ai.base import AIProvider
 from yasinpress.database.models import Article
 from yasinpress.pipeline.runtime import ArticlePipeline, PipelineResult
-from yasinpress.publishing import Publisher
+from yasinpress.publishing import PublishResult, Publisher
 from yasinpress.publishing.orchestrator import PublishReport, PublishingOrchestrator
+from yasinpress.sources.feed import FeedItem
 
 
 @dataclass(frozen=True)
 class ProcessingReport:
     pipeline: PipelineResult
-    publications: PublishReport | None
+    publications: PublishReport
 
 
 class ProcessingService:
-    """Application service joining normalization, optional AI, persistence and publishing."""
+    """Application service joining deterministic processing, optional AI, and publishing."""
 
-    def __init__(self, *, ai: AIProvider | None = None, publishers: Iterable[Publisher] = ()) -> None:
+    def __init__(self, *, source: str, ai: AIProvider | None = None, publishers: Iterable[Publisher] = ()) -> None:
         self.ai = ai
-        self.pipeline = ArticlePipeline()
+        self.pipeline = ArticlePipeline(source)
         self.publisher = PublishingOrchestrator(tuple(publishers))
 
-    def process(self, items: Iterable[object]) -> ProcessingReport:
+    def process(self, items: Iterable[FeedItem]) -> ProcessingReport:
         result = self.pipeline.process(items)
         articles: list[Article] = []
         for article in result.articles:
@@ -33,21 +34,11 @@ class ProcessingService:
                 continue
             enriched = self.ai.enrich(article)
             if enriched.success:
-                articles.append(
-                    Article(
-                        id=article.id,
-                        title=enriched.title,
-                        url=article.url,
-                        content=enriched.content,
-                        source=article.source,
-                        published_at=article.published_at,
-                        category=article.category,
-                    )
-                )
+                articles.append(Article(id=article.id, title=enriched.title, url=article.url, content=enriched.content, source=article.source, published_at=article.published_at, category=article.category))
             else:
                 articles.append(article)
-        publication = self.publisher.publish(articles[0]) if len(articles) == 1 else None
-        return ProcessingReport(
-            PipelineResult(tuple(articles), result.rejected, result.errors),
-            publication,
-        )
+
+        results: list[PublishResult] = []
+        for article in articles:
+            results.extend(self.publisher.publish(article).results)
+        return ProcessingReport(PipelineResult(len(articles), result.rejected, tuple(articles)), PublishReport(tuple(results)))
