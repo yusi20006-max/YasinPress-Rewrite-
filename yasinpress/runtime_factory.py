@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Iterable
 
 from yasinpress.config.runtime import RuntimeConfig
@@ -52,7 +53,7 @@ def build_runtime(*, config: RuntimeConfig | None = None, ai=None,
     if cfg.feed_urls:
         def fetch_and_submit() -> None:
             jobs.submit_urls(cfg.feed_urls, fetcher=fetcher)
-        scheduler.add_interval("feed-fetch", __import__("datetime").timedelta(seconds=cfg.scheduler_interval_seconds), fetch_and_submit)
+        scheduler.add_interval("feed-fetch", timedelta(seconds=cfg.scheduler_interval_seconds), fetch_and_submit)
 
     def tick() -> None:
         scheduler.run_due()
