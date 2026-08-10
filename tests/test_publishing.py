@@ -1,7 +1,12 @@
 from datetime import datetime, timezone
 
 from yasinpress.database.models import Article
+from yasinpress.database.sqlite import SQLiteDeliveryHistory, SQLiteIdempotencyStore
 from yasinpress.publishing import PublishResult, Publisher
+from yasinpress.publishing.history import DeliveryRecord, InMemoryDeliveryHistory
+from yasinpress.publishing.idempotency import IdempotencyStore
+from yasinpress.publishing.orchestrator import PublishingOrchestrator
+from yasinpress.publishing.reliability import ReliablePublisher, RetryPolicy
 
 
 class MockPublisher(Publisher):
@@ -13,16 +18,56 @@ class MockPublisher(Publisher):
         return PublishResult(True, self.name, external_id=article.id)
 
 
+class FlakyPublisher(Publisher):
+    name = "flaky"
+
+    def __init__(self, failures: int):
+        self.failures = failures
+        self.calls = 0
+
+    def publish(self, article: Article) -> PublishResult:
+        self.calls += 1
+        if self.calls <= self.failures:
+            return PublishResult(False, self.name, external_id=article.id, error="temporary")
+        return PublishResult(True, self.name, external_id=article.id)
+
+
+ARTICLE = Article("1", "title", "https://example.com/1", "body", "test", datetime.now(timezone.utc))
+
+
 def test_publisher_contract():
-    article = Article(
-        id="1",
-        title="خبر",
-        url="https://example.com/1",
-        content="متن",
-        source="test",
-        published_at=datetime.now(timezone.utc),
-    )
-    result = MockPublisher().publish(article)
+    result = MockPublisher().publish(ARTICLE)
     assert result.success
     assert result.destination == "mock"
     assert result.external_id == "1"
+
+
+def test_reliable_publisher_retries_and_succeeds():
+    publisher = FlakyPublisher(2)
+    retry = ReliablePublisher(publisher, RetryPolicy(3, 0, 0), sleeper=lambda _: None)
+    assert retry.publish(ARTICLE).success
+    assert publisher.calls == 3
+    assert retry.attempts == 3
+
+
+def test_orchestrator_is_idempotent_after_success():
+    publisher = FlakyPublisher(0)
+    history = InMemoryDeliveryHistory()
+    orchestrator = PublishingOrchestrator([publisher], retry_policy=RetryPolicy(1), history=history, idempotency=IdempotencyStore())
+    assert orchestrator.publish(ARTICLE).success_count == 1
+    assert orchestrator.publish(ARTICLE).success_count == 1
+    assert publisher.calls == 1
+    assert len(history.all()) == 1
+
+
+def test_sqlite_publishing_state():
+    import sqlite3
+    conn = sqlite3.connect(":memory:")
+    history = SQLiteDeliveryHistory(conn)
+    history.add(DeliveryRecord("1", "mock", True, 1, "1", None))
+    assert history.for_article("1")[0].success
+    store = SQLiteIdempotencyStore(conn)
+    assert not store.seen("1:mock")
+    store.mark("1:mock")
+    store.mark("1:mock")
+    assert store.seen("1:mock")
