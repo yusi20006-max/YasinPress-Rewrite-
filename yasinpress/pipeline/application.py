@@ -8,6 +8,7 @@ from yasinpress.database.models import Article
 from yasinpress.database.sqlite import SQLiteArticleRepository, SQLiteRepositories
 from yasinpress.pipeline.service import ProcessingReport, ProcessingService
 from yasinpress.publishing import Publisher
+from yasinpress.sources.feed import FeedItem
 
 
 @dataclass(frozen=True)
@@ -19,14 +20,9 @@ class ApplicationReport:
 class YasinPressApplication:
     """Composition root for feed → AI → persistence → publishing."""
 
-    def __init__(
-        self,
-        *,
-        ai: AIProvider | None = None,
-        publishers: Iterable[Publisher] = (),
-        repository: SQLiteArticleRepository | None = None,
-        repositories: SQLiteRepositories | None = None,
-    ) -> None:
+    def __init__(self, *, source: str = "rss", ai: AIProvider | None = None,
+                 publishers: Iterable[Publisher] = (), repository: SQLiteArticleRepository | None = None,
+                 repositories: SQLiteRepositories | None = None) -> None:
         self.repositories = repositories
         if repository is not None:
             self.repository = repository
@@ -34,9 +30,9 @@ class YasinPressApplication:
             self.repository = repositories.articles
         else:
             self.repository = SQLiteArticleRepository()
-        self.processing = ProcessingService(ai=ai, publishers=publishers)
+        self.processing = ProcessingService(source=source, ai=ai, publishers=publishers)
 
-    def process_items(self, items: Iterable[object]) -> ApplicationReport:
+    def process_items(self, items: Iterable[FeedItem]) -> ApplicationReport:
         report = self.processing.process(items)
         self.repository.save_many(report.pipeline.articles)
         return ApplicationReport(report, len(report.pipeline.articles))
