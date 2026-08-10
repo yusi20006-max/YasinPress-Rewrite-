@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from datetime import datetime
 
 from yasinpress.database.models import Article
+from yasinpress.publishing.history import DeliveryRecord
 
 
 class SQLiteArticleRepository:
@@ -53,13 +54,68 @@ class SQLiteArticleRepository:
             self.connection.close()
 
 
+class SQLiteDeliveryHistory:
+    """Durable delivery history backed by the shared application connection."""
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+        self.connection.execute(
+            """CREATE TABLE IF NOT EXISTS delivery_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id TEXT NOT NULL,
+                destination TEXT NOT NULL,
+                success INTEGER NOT NULL,
+                attempts INTEGER NOT NULL,
+                external_id TEXT,
+                error TEXT,
+                created_at TEXT NOT NULL
+            )"""
+        )
+        self.connection.commit()
+
+    def add(self, record: DeliveryRecord) -> None:
+        self.connection.execute(
+            "INSERT INTO delivery_history(article_id,destination,success,attempts,external_id,error,created_at) VALUES(?,?,?,?,?,?,?)",
+            (record.article_id, record.destination, int(record.success), record.attempts,
+             record.external_id, record.error, record.created_at.isoformat()),
+        )
+        self.connection.commit()
+
+    def all(self) -> tuple[DeliveryRecord, ...]:
+        rows = self.connection.execute("SELECT article_id,destination,success,attempts,external_id,error,created_at FROM delivery_history ORDER BY id").fetchall()
+        return tuple(self._record(row) for row in rows)
+
+    def for_article(self, article_id: str) -> tuple[DeliveryRecord, ...]:
+        rows = self.connection.execute("SELECT article_id,destination,success,attempts,external_id,error,created_at FROM delivery_history WHERE article_id=? ORDER BY id", (article_id,)).fetchall()
+        return tuple(self._record(row) for row in rows)
+
+    @staticmethod
+    def _record(row) -> DeliveryRecord:
+        return DeliveryRecord(row[0], row[1], bool(row[2]), row[3], row[4], row[5], datetime.fromisoformat(row[6]))
+
+
+class SQLiteIdempotencyStore:
+    """Durable destination idempotency keys on the shared SQLite database."""
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+        self.connection.execute("CREATE TABLE IF NOT EXISTS idempotency_keys (key TEXT PRIMARY KEY)")
+        self.connection.commit()
+
+    def seen(self, key: str) -> bool:
+        return self.connection.execute("SELECT 1 FROM idempotency_keys WHERE key=?", (key,)).fetchone() is not None
+
+    def mark(self, key: str) -> None:
+        self.connection.execute("INSERT OR IGNORE INTO idempotency_keys(key) VALUES(?)", (key,))
+        self.connection.commit()
+
+
 class SQLiteRepositories:
     """Composition point sharing one SQLite connection across all durable state."""
 
     def __init__(self, path: str = ":memory:") -> None:
         from yasinpress.database.delivery import SQLiteDeliveryRepository
         from yasinpress.database.jobs import SQLiteJobRepository
-        from yasinpress.publishing.sqlite_state import SQLiteDeliveryHistory, SQLiteIdempotencyStore
 
         self.connection = sqlite3.connect(path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
