@@ -1,6 +1,7 @@
 """Queue worker with lifecycle tracking, retries and persistent state."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from queue import Empty
 from typing import Callable
 
@@ -17,10 +18,13 @@ class Worker:
         self.queue = queue or JobQueue()
         self.retry = retry or RetryPolicy()
         self.store = store or InMemoryJobStore()
+        self._pending: dict[int, LifecycleJob] = {}
 
     def submit(self, job: LifecycleJob, handler: Callable[[], object], *, priority: int = 0) -> LifecycleJob:
         self.store.save(job)
-        self.queue.put(QueuedJob(priority, job.name, lambda: handler()))
+        task = lambda: handler()
+        self._pending[id(task)] = job
+        self.queue.put(QueuedJob(priority, job.name, task))
         return job
 
     def run_once(self) -> LifecycleJob | None:
@@ -29,43 +33,41 @@ class Worker:
         except Empty:
             return None
 
-        # The queue stores executable tasks; lifecycle identity is recovered from the name.
-        # For submitted jobs, _pending maps the task back to its lifecycle object.
-        lifecycle = self._pending.pop(id(queued.task), None) if hasattr(self, "_pending") else None
+        lifecycle = self._pending.pop(id(queued.task), None)
         if lifecycle is None:
             lifecycle = LifecycleJob(id=queued.name, name=queued.name)
 
         lifecycle.status = JobStatus.RUNNING
-        lifecycle.started_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        lifecycle.started_at = datetime.now(timezone.utc)
         self.store.save(lifecycle)
         last_error: Exception | None = None
-        for _ in range(self.retry.attempts):
+
+        for attempt in range(self.retry.attempts):
             lifecycle.attempts += 1
             try:
                 queued.task()
             except Exception as exc:
                 last_error = exc
-                if lifecycle.attempts < self.retry.attempts:
+                if attempt + 1 < self.retry.attempts:
                     import time
-                    time.sleep(self.retry.delay * (2 ** (lifecycle.attempts - 1)))
+                    time.sleep(self.retry.delay * (2 ** attempt))
                     continue
                 lifecycle.status = JobStatus.FAILED
-                lifecycle.error = str(exc)
+                lifecycle.error = str(last_error)
             else:
                 lifecycle.status = JobStatus.SUCCEEDED
                 lifecycle.error = None
                 break
-        lifecycle.finished_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+
+        lifecycle.finished_at = datetime.now(timezone.utc)
         self.store.save(lifecycle)
         return lifecycle
 
     def run_all(self) -> tuple[LifecycleJob, ...]:
         results: list[LifecycleJob] = []
-        while True:
-            result = self.run_once()
-            if result is None:
-                return tuple(results)
+        while (result := self.run_once()) is not None:
             results.append(result)
+        return tuple(results)
 
     def pending(self) -> int:
         return self.queue._queue.qsize()
