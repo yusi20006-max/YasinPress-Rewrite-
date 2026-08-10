@@ -9,6 +9,7 @@ from yasinpress.pipeline.application import YasinPressApplication
 from yasinpress.publishing import Publisher
 from yasinpress.runtime import Runtime
 from yasinpress.scheduler.application_job import PipelineJobFactory
+from yasinpress.scheduler.retry import RetryPolicy
 from yasinpress.scheduler.worker import Worker
 
 
@@ -34,7 +35,7 @@ def build_runtime(*, config: RuntimeConfig | None = None, ai=None,
     cfg.validate()
     database = SQLiteRepositories(cfg.database_path)
     application = YasinPressApplication(source=cfg.feed_source, ai=ai, publishers=publishers, repositories=database)
-    worker = Worker()
+    worker = Worker(retry=RetryPolicy(attempts=cfg.max_job_attempts), store=database.jobs)
     jobs = PipelineJobFactory(application, worker)
     fetcher = FeedFetcher(timeout=cfg.request_timeout_seconds)
     runtime = Runtime(worker.run_once, interval_seconds=cfg.worker_interval_seconds)
