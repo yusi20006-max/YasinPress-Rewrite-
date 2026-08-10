@@ -29,7 +29,7 @@ class Worker:
 
     def run_once(self) -> LifecycleJob | None:
         try:
-            queued = self.queue._queue.get_nowait()
+            queued = self.queue.get_nowait()
         except Empty:
             return None
 
@@ -40,20 +40,18 @@ class Worker:
         lifecycle.status = JobStatus.RUNNING
         lifecycle.started_at = datetime.now(timezone.utc)
         self.store.save(lifecycle)
-        last_error: Exception | None = None
 
         for attempt in range(self.retry.attempts):
             lifecycle.attempts += 1
             try:
                 queued.task()
             except Exception as exc:
-                last_error = exc
+                lifecycle.error = str(exc)
                 if attempt + 1 < self.retry.attempts:
                     import time
                     time.sleep(self.retry.delay * (2 ** attempt))
                     continue
                 lifecycle.status = JobStatus.FAILED
-                lifecycle.error = str(last_error)
             else:
                 lifecycle.status = JobStatus.SUCCEEDED
                 lifecycle.error = None
@@ -70,4 +68,4 @@ class Worker:
         return tuple(results)
 
     def pending(self) -> int:
-        return self.queue._queue.qsize()
+        return self.queue.qsize()
