@@ -1,0 +1,1 @@
+"""YasinPress command-line interface."""
