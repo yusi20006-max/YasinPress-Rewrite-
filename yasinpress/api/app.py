@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from inspect import signature
 
 from .auth import TokenAuth
 from .request import Request
@@ -41,11 +42,12 @@ class ApiApp:
         if not path.startswith("/"):
             raise ValueError("API paths must start with '/'")
 
+        accepts_request = len(signature(handler).parameters) > 0
+
         def adapted(request: Request) -> Response:
-            try:
+            if accepts_request:
                 return handler(request)  # type: ignore[misc]
-            except TypeError:
-                return handler()  # type: ignore[call-arg]
+            return handler()  # type: ignore[call-arg]
 
         self.routes[(normalized_method, path)] = Route(
             method=normalized_method,
@@ -67,7 +69,7 @@ class ApiApp:
         if route is None:
             allowed = tuple(
                 registered.method
-                for (registered_method, registered_path), registered in self.routes.items()
+                for (_, registered_path), registered in self.routes.items()
                 if registered_path == request.path
             )
             return method_not_allowed(allowed) if allowed else not_found()
