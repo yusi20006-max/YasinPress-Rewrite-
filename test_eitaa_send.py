@@ -1,6 +1,7 @@
 import os
+
 import httpx
-from yasinpress.publishing.eitaa import EitaaPublisher
+
 from yasinpress.config.loaders import load_env
 
 # 1. بارگذاری تنظیمات
@@ -25,6 +26,7 @@ def test_send():
         print("پاسخ سرور:", response.json())
     except Exception as e:
         print(f"❌ خطای ارسال: {e}")
+
 
 if __name__ == "__main__":
     test_send()
