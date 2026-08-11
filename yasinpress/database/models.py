@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 @dataclass(frozen=True)
 class Article:
-    """A normalized news article."""
+    """A normalized news article and its processing provenance."""
 
     id: str
     title: str
@@ -15,3 +15,4 @@ class Article:
     source: str
     published_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     category: str | None = None
+    ai_modified: bool = False
