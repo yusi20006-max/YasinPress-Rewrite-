@@ -1,21 +1,79 @@
-"""Minimal REST-style router."""
+"""Minimal but method-aware transport-neutral API router."""
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
-from .responses import Response
+from .auth import TokenAuth
+from .request import Request
+from .responses import Response, method_not_allowed, not_found, unauthorized
+
+
+Handler = Callable[[Request], Response]
+LegacyHandler = Callable[[], Response]
+
+
+@dataclass(frozen=True)
+class Route:
+    """One registered API route."""
+
+    method: str
+    handler: Handler
+    protected: bool = False
 
 
 class ApiApp:
-    """Routes paths to handlers."""
+    """Route requests without coupling the domain to an HTTP framework."""
 
-    def __init__(self) -> None:
-        self.routes: dict[str, Callable[[], Response]] = {}
+    def __init__(self, auth: TokenAuth | None = None) -> None:
+        self.routes: dict[tuple[str, str], Route] = {}
+        self.auth = auth
 
-    def route(self, path: str, handler: Callable[[], Response]) -> None:
-        """Register a path handler."""
-        self.routes[path] = handler
+    def route(
+        self,
+        path: str,
+        handler: Handler | LegacyHandler,
+        *,
+        method: str = "GET",
+        protected: bool = False,
+    ) -> None:
+        """Register a route while retaining the original zero-argument API."""
+        normalized_method = method.upper()
+        if not path.startswith("/"):
+            raise ValueError("API paths must start with '/'")
 
-    def handle(self, path: str) -> Response:
-        """Handle a path."""
-        handler = self.routes.get(path)
-        return handler() if handler else Response(404, {"error": "not_found"})
+        def adapted(request: Request) -> Response:
+            try:
+                return handler(request)  # type: ignore[misc]
+            except TypeError:
+                return handler()  # type: ignore[call-arg]
+
+        self.routes[(normalized_method, path)] = Route(
+            method=normalized_method,
+            handler=adapted,
+            protected=protected,
+        )
+
+    def handle(
+        self,
+        target: str,
+        *,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: dict[str, object] | None = None,
+    ) -> Response:
+        """Handle a target such as ``/api/articles?page=2``."""
+        request = Request.from_target(target, method=method, headers=headers, body=body)
+        route = self.routes.get((request.method, request.path))
+        if route is None:
+            allowed = tuple(
+                registered.method
+                for (registered_method, registered_path), registered in self.routes.items()
+                if registered_path == request.path
+            )
+            return method_not_allowed(allowed) if allowed else not_found()
+
+        if route.protected:
+            if self.auth is None or not self.auth.verify(request.bearer_token or ""):
+                return unauthorized()
+
+        return route.handler(request)
