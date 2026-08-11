@@ -87,6 +87,8 @@ def build_runtime(
         publishers=configured,
         repositories=database,
         retry_policy=RetryPolicy(max_attempts=cfg.max_job_attempts),
+        max_article_age_hours=cfg.max_article_age_hours,
+        max_publications_per_hour=cfg.max_publications_per_hour,
     )
     worker = Worker(retry=JobRetryPolicy(attempts=cfg.max_job_attempts), store=database.jobs)
 
@@ -108,7 +110,21 @@ def build_runtime(
 
     def tick() -> None:
         scheduler.run_due()
-        worker.run_once()
+        job = worker.run_once()
+        if job is not None and job.state.value == "succeeded":
+            report = getattr(job, "result", None)
+            if report is not None:
+                processing = getattr(report, "processing", None)
+                if processing is not None:
+                    publications = processing.publications
+                    print(
+                        "Publishing report: "
+                        f"{publications.success_count} sent, "
+                        f"{publications.failure_count} failed, "
+                        f"{processing.queued_count} queued, "
+                        f"{processing.old_count} old (>6h)",
+                        flush=True,
+                    )
 
     runtime = Runtime(tick, interval_seconds=cfg.worker_interval_seconds)
     return RuntimeBundle(
