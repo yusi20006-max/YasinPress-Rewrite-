@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
-import uuid
 
 
 class JobStatus(str, Enum):

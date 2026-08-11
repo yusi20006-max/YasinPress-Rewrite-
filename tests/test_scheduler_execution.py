@@ -1,12 +1,12 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+from yasinpress.scheduler.jobs import JobStatus
 from yasinpress.scheduler.queue import JobQueue
 from yasinpress.scheduler.scheduler import Scheduler
-from yasinpress.scheduler.jobs import JobStatus
 
 
 def test_interval_scheduler_runs_due_task_once():
-    now = [datetime(2026, 1, 1, tzinfo=timezone.utc)]
+    now = [datetime(2026, 1, 1, tzinfo=UTC)]
     calls = []
     scheduler = Scheduler(JobQueue(), now=lambda: now[0])
     scheduler.add_interval("feed", timedelta(minutes=5), lambda: calls.append("run"))
@@ -19,7 +19,9 @@ def test_interval_scheduler_runs_due_task_once():
 
 def test_interval_scheduler_records_failure():
     scheduler = Scheduler(JobQueue())
-    scheduler.add_interval("broken", timedelta(minutes=1), lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    scheduler.add_interval(
+        "broken", timedelta(minutes=1), lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
     result = scheduler.run_due()[0]
     assert result.status == JobStatus.FAILED
     assert result.error == "boom"

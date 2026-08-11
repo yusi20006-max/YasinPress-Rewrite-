@@ -1,4 +1,5 @@
 """Secret helpers."""
+
 import secrets
 
 

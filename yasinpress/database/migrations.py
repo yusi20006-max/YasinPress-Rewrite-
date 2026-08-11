@@ -1,4 +1,5 @@
 """Database migrations."""
+
 import sqlite3
 
 MIGRATIONS: tuple[str, ...] = (

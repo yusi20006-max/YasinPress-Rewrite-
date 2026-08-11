@@ -1,4 +1,5 @@
 """General helper functions."""
+
 from hashlib import sha256
 from re import sub
 

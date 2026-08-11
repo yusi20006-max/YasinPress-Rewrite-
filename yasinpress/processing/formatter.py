@@ -1,4 +1,5 @@
 """Article presentation formatting."""
+
 from yasinpress.database.models import Article
 
 

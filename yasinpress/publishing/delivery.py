@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from yasinpress.database.models import Article
-from yasinpress.publishing import PublishResult, Publisher
+from yasinpress.publishing import Publisher, PublishResult
 from yasinpress.transport.http import HTTPTransport
 
 
@@ -25,7 +25,9 @@ class HTTPDelivery:
     def __init__(self, transport: HTTPTransport) -> None:
         self.transport = transport
 
-    def deliver(self, publisher: PayloadPublisher, article: Article, target: DeliveryTarget) -> PublishResult:
+    def deliver(
+        self, publisher: PayloadPublisher, article: Article, target: DeliveryTarget
+    ) -> PublishResult:
         payload = publisher.render(article)
         response = self.transport.post_text(
             target.url,
@@ -34,4 +36,9 @@ class HTTPDelivery:
         )
         if response.ok:
             return PublishResult(True, target.name, external_id=article.id)
-        return PublishResult(False, target.name, external_id=article.id, error=f"HTTP {response.status_code}: {response.body}")
+        return PublishResult(
+            False,
+            target.name,
+            external_id=article.id,
+            error=f"HTTP {response.status_code}: {response.body}",
+        )

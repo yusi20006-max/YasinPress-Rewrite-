@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from yasinpress.database.models import Article
 from yasinpress.database.sqlite import SQLiteArticleRepository
@@ -6,7 +6,7 @@ from yasinpress.database.sqlite import SQLiteArticleRepository
 
 def test_sqlite_article_repository_round_trip():
     repo = SQLiteArticleRepository()
-    article = Article("1", "خبر", "https://example.com", "متن", "feed", datetime.now(timezone.utc), "tech")
+    article = Article("1", "خبر", "https://example.com", "متن", "feed", datetime.now(UTC), "tech")
     repo.save(article)
     loaded = repo.get("1")
     assert loaded == article

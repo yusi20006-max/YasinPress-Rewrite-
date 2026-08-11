@@ -1,9 +1,9 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from yasinpress.ai.base import AIProvider, AIResult
 from yasinpress.database.models import Article
 from yasinpress.pipeline.service import ProcessingService
-from yasinpress.publishing import PublishResult, Publisher
+from yasinpress.publishing import Publisher, PublishResult
 from yasinpress.sources.feed import FeedItem
 
 
@@ -27,10 +27,12 @@ class MockPublisher(Publisher):
 
 def test_processing_service_runs_ai_and_publishes_all_articles():
     items = [
-        FeedItem("one", "https://example.com/1", "body", datetime.now(timezone.utc)),
-        FeedItem("two", "https://example.com/2", "body", datetime.now(timezone.utc)),
+        FeedItem("one", "https://example.com/1", "body", datetime.now(UTC)),
+        FeedItem("two", "https://example.com/2", "body", datetime.now(UTC)),
     ]
-    report = ProcessingService(source="test", ai=MockAI(), publishers=[MockPublisher()]).process(items)
+    report = ProcessingService(source="test", ai=MockAI(), publishers=[MockPublisher()]).process(
+        items
+    )
     assert report.pipeline.processed == 2
     assert [a.title for a in report.pipeline.articles] == ["one AI", "two AI"]
     assert len(report.publications.results) == 2

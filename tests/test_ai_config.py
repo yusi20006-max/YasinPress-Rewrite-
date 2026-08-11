@@ -1,5 +1,3 @@
-import os
-
 from yasinpress.ai.config import AIConfig
 
 

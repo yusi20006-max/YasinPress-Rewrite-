@@ -1,5 +1,7 @@
 """API routes."""
+
 from yasinpress.monitoring.health import check_health
+
 from .responses import Response, ok
 
 

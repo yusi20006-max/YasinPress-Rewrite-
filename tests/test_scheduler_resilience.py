@@ -1,10 +1,10 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from yasinpress.scheduler.scheduler import Scheduler
 
 
 def test_scheduler_does_not_skip_next_interval_after_multiple_ticks():
-    current = [datetime(2026, 1, 1, tzinfo=timezone.utc)]
+    current = [datetime(2026, 1, 1, tzinfo=UTC)]
     calls = []
     scheduler = Scheduler(type("Q", (), {})(), now=lambda: current[0])
     scheduler.add_interval("feed", timedelta(seconds=10), lambda: calls.append(current[0]))

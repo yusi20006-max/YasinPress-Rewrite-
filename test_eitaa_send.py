@@ -14,6 +14,7 @@ if not token or not channel:
     print("❌ خطا: متغیرهای YASINPRESS_EITAA_API_TOKEN یا YASINPRESS_EITAA_CHANNEL_ID یافت نشدند.")
     sys.exit(1)
 
+
 # 2. ساخت URL و ارسال
 def test_send():
     print(f"🚀 در حال تلاش برای ارسال پیام به کانال {channel}...")

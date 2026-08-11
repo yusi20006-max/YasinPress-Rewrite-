@@ -1,4 +1,5 @@
 """Command-line entrypoint."""
+
 from __future__ import annotations
 
 import argparse
@@ -11,11 +12,17 @@ from yasinpress.runtime_factory import build_runtime
 def main(argv: list[str] | None = None) -> int:
     """Run a YasinPress CLI command."""
     parser = argparse.ArgumentParser(prog="yasinpress")
-    parser.add_argument("command", choices=["status", "version", "config", "health", "run"], nargs="?", default="status")
+    parser.add_argument(
+        "command",
+        choices=["status", "version", "config", "health", "run"],
+        nargs="?",
+        default="status",
+    )
     args = parser.parse_args(argv)
 
     if args.command == "version":
         from yasinpress import __version__
+
         print(__version__)
         return 0
     if args.command == "config":

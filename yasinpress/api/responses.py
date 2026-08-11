@@ -1,10 +1,13 @@
 """API response helpers."""
+
 from dataclasses import dataclass
 from typing import Any
+
 
 @dataclass(frozen=True)
 class Response:
     """REST-style response object."""
+
     status_code: int
     body: dict[str, Any]
 

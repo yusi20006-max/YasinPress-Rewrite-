@@ -1,7 +1,10 @@
 """Configuration loaders."""
-import json, os
+
+import json
+import os
 from pathlib import Path
 from typing import Any
+
 import yaml
 
 
@@ -17,4 +20,8 @@ def load_yaml(path: str) -> dict[str, Any]:
 
 def load_env(prefix: str = "YASINPRESS_") -> dict[str, str]:
     """Load prefixed environment variables."""
-    return {key.removeprefix(prefix).lower(): value for key, value in os.environ.items() if key.startswith(prefix)}
+    return {
+        key.removeprefix(prefix).lower(): value
+        for key, value in os.environ.items()
+        if key.startswith(prefix)
+    }

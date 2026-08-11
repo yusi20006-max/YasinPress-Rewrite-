@@ -1,11 +1,14 @@
 """RSS feed parsing."""
-from dataclasses import dataclass
-from datetime import datetime, UTC
+
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
 
 @dataclass(frozen=True)
 class FeedItem:
     """An item parsed from an RSS feed."""
+
     title: str
     url: str
     content: str

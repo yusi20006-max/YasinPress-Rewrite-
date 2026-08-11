@@ -1,5 +1,7 @@
 """Plugin loader."""
+
 import importlib
+
 from .interfaces import Plugin
 
 

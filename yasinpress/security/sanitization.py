@@ -1,4 +1,5 @@
 """Input sanitization."""
+
 import html
 
 

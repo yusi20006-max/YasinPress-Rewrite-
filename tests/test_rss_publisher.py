@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from yasinpress.database.models import Article
 from yasinpress.publishing.rss import RSSPublisher
@@ -11,7 +11,7 @@ def test_rss_render_contains_core_fields():
         url="https://example.com/1",
         content="محتوای خبر",
         source="test",
-        published_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        published_at=datetime(2026, 1, 1, tzinfo=UTC),
         category="technology",
     )
     xml = RSSPublisher().render(article)
@@ -28,7 +28,7 @@ def test_rss_publish_returns_delivery_result():
         url="https://example.com/1",
         content="محتوا",
         source="test",
-        published_at=datetime.now(timezone.utc),
+        published_at=datetime.now(UTC),
     )
     result = RSSPublisher().publish(article)
     assert result.success

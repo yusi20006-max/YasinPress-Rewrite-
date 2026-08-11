@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from yasinpress.ai.mock import FailingAIProvider, MockAIProvider
 from yasinpress.ai.safe import SafeAIEnricher
@@ -13,7 +13,7 @@ def make_article() -> Article:
         url="https://example.com/1",
         content="Original content",
         source="test",
-        published_at=datetime.now(timezone.utc),
+        published_at=datetime.now(UTC),
         category="technology",
     )
 

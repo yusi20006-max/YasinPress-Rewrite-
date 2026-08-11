@@ -1,7 +1,9 @@
 """Transaction helpers."""
-from contextlib import contextmanager
-from collections.abc import Iterator
+
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 
 @contextmanager
 def transaction(connection: sqlite3.Connection) -> Iterator[sqlite3.Connection]:

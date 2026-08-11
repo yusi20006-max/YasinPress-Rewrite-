@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta, timezone
 import sqlite3
+from datetime import UTC, datetime, timedelta
 
 from yasinpress.database.repositories import ArticleRepository
 from yasinpress.processing.pipeline import ArticlePipeline
@@ -8,7 +8,9 @@ from yasinpress.sources.feed import FeedItem
 
 def make_repo() -> ArticleRepository:
     conn = sqlite3.connect(":memory:")
-    conn.execute("CREATE TABLE articles (id TEXT PRIMARY KEY, title TEXT, url TEXT, content TEXT, source TEXT, published_at TEXT, category TEXT)")
+    conn.execute(
+        "CREATE TABLE articles (id TEXT PRIMARY KEY, title TEXT, url TEXT, content TEXT, source TEXT, published_at TEXT, category TEXT)"
+    )
     return ArticleRepository(conn)
 
 
@@ -17,7 +19,7 @@ def item(title: str, *, age_hours: int = 1) -> FeedItem:
         title=title,
         url="https://example.com/news",
         content="فناوری و خبر مهم",
-        published_at=datetime.now(timezone.utc) - timedelta(hours=age_hours),
+        published_at=datetime.now(UTC) - timedelta(hours=age_hours),
     )
 
 

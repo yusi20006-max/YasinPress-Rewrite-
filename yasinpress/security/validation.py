@@ -1,4 +1,5 @@
 """Security validation."""
+
 from urllib.parse import urlparse
 
 

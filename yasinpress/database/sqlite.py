@@ -11,7 +11,9 @@ from yasinpress.publishing.history import DeliveryRecord
 class SQLiteArticleRepository:
     """Persistence adapter for normalized Article records."""
 
-    def __init__(self, path: str = ":memory:", connection: sqlite3.Connection | None = None) -> None:
+    def __init__(
+        self, path: str = ":memory:", connection: sqlite3.Connection | None = None
+    ) -> None:
         self._owns_connection = connection is None
         self.connection = connection or sqlite3.connect(path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
@@ -27,8 +29,15 @@ class SQLiteArticleRepository:
                VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
                title=excluded.title,url=excluded.url,content=excluded.content,
                source=excluded.source,published_at=excluded.published_at,category=excluded.category""",
-            (article.id, article.title, article.url, article.content, article.source,
-             article.published_at.isoformat(), article.category),
+            (
+                article.id,
+                article.title,
+                article.url,
+                article.content,
+                article.source,
+                article.published_at.isoformat(),
+                article.category,
+            ),
         )
         self.connection.commit()
 
@@ -42,11 +51,32 @@ class SQLiteArticleRepository:
         ).fetchone()
         if row is None:
             return None
-        return Article(row["id"], row["title"], row["url"], row["content"], row["source"], datetime.fromisoformat(row["published_at"]), row["category"])
+        return Article(
+            row["id"],
+            row["title"],
+            row["url"],
+            row["content"],
+            row["source"],
+            datetime.fromisoformat(row["published_at"]),
+            row["category"],
+        )
 
     def all(self) -> tuple[Article, ...]:
-        rows = self.connection.execute("SELECT * FROM articles ORDER BY published_at DESC").fetchall()
-        return tuple(Article(r["id"], r["title"], r["url"], r["content"], r["source"], datetime.fromisoformat(r["published_at"]), r["category"]) for r in rows)
+        rows = self.connection.execute(
+            "SELECT * FROM articles ORDER BY published_at DESC"
+        ).fetchall()
+        return tuple(
+            Article(
+                r["id"],
+                r["title"],
+                r["url"],
+                r["content"],
+                r["source"],
+                datetime.fromisoformat(r["published_at"]),
+                r["category"],
+            )
+            for r in rows
+        )
 
     def close(self) -> None:
         if self._owns_connection:
@@ -67,21 +97,36 @@ class SQLiteDeliveryHistory:
     def add(self, record: DeliveryRecord) -> None:
         self.connection.execute(
             "INSERT INTO delivery_history(article_id,destination,success,attempts,external_id,error,created_at) VALUES(?,?,?,?,?,?,?)",
-            (record.article_id, record.destination, int(record.success), record.attempts, record.external_id, record.error, record.created_at.isoformat()),
+            (
+                record.article_id,
+                record.destination,
+                int(record.success),
+                record.attempts,
+                record.external_id,
+                record.error,
+                record.created_at.isoformat(),
+            ),
         )
         self.connection.commit()
 
     def all(self) -> tuple[DeliveryRecord, ...]:
-        rows = self.connection.execute("SELECT article_id,destination,success,attempts,external_id,error,created_at FROM delivery_history ORDER BY rowid").fetchall()
+        rows = self.connection.execute(
+            "SELECT article_id,destination,success,attempts,external_id,error,created_at FROM delivery_history ORDER BY rowid"
+        ).fetchall()
         return tuple(self._record(row) for row in rows)
 
     def for_article(self, article_id: str) -> tuple[DeliveryRecord, ...]:
-        rows = self.connection.execute("SELECT article_id,destination,success,attempts,external_id,error,created_at FROM delivery_history WHERE article_id=? ORDER BY rowid", (article_id,)).fetchall()
+        rows = self.connection.execute(
+            "SELECT article_id,destination,success,attempts,external_id,error,created_at FROM delivery_history WHERE article_id=? ORDER BY rowid",
+            (article_id,),
+        ).fetchall()
         return tuple(self._record(row) for row in rows)
 
     @staticmethod
     def _record(row) -> DeliveryRecord:
-        return DeliveryRecord(row[0], row[1], bool(row[2]), row[3], row[4], row[5], datetime.fromisoformat(row[6]))
+        return DeliveryRecord(
+            row[0], row[1], bool(row[2]), row[3], row[4], row[5], datetime.fromisoformat(row[6])
+        )
 
 
 class SQLiteIdempotencyStore:
@@ -89,11 +134,16 @@ class SQLiteIdempotencyStore:
 
     def __init__(self, connection: sqlite3.Connection) -> None:
         self.connection = connection
-        self.connection.execute("CREATE TABLE IF NOT EXISTS idempotency_keys (key TEXT PRIMARY KEY)")
+        self.connection.execute(
+            "CREATE TABLE IF NOT EXISTS idempotency_keys (key TEXT PRIMARY KEY)"
+        )
         self.connection.commit()
 
     def seen(self, key: str) -> bool:
-        return self.connection.execute("SELECT 1 FROM idempotency_keys WHERE key=?", (key,)).fetchone() is not None
+        return (
+            self.connection.execute("SELECT 1 FROM idempotency_keys WHERE key=?", (key,)).fetchone()
+            is not None
+        )
 
     def mark(self, key: str) -> None:
         self.connection.execute("INSERT OR IGNORE INTO idempotency_keys(key) VALUES(?)", (key,))
@@ -106,6 +156,7 @@ class SQLiteRepositories:
     def __init__(self, path: str = ":memory:") -> None:
         from yasinpress.database.delivery import SQLiteDeliveryRepository
         from yasinpress.database.jobs import SQLiteJobRepository
+
         self.connection = sqlite3.connect(path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self.articles = SQLiteArticleRepository(connection=self.connection)

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from yasinpress.database.sqlite import SQLiteRepositories
 from yasinpress.pipeline.application import YasinPressApplication
@@ -13,7 +13,7 @@ class FakeAI:
 def test_feed_item_reaches_persistent_article_store(tmp_path):
     db = SQLiteRepositories(str(tmp_path / "e2e.db"))
     app = YasinPressApplication(ai=FakeAI(), repositories=db)
-    item = FeedItem("Title", "https://example.com/1", "body", datetime.now(timezone.utc))
+    item = FeedItem("Title", "https://example.com/1", "body", datetime.now(UTC))
     report = app.process_items([item])
     assert report.persisted_count == 1
     assert db.articles.get("https://example.com/1") is not None

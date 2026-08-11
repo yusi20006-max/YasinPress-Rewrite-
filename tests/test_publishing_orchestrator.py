@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from yasinpress.database.models import Article
-from yasinpress.publishing import PublishResult, Publisher
+from yasinpress.publishing import Publisher, PublishResult
 from yasinpress.publishing.orchestrator import PublishingOrchestrator
 
 
@@ -30,7 +30,7 @@ def article() -> Article:
         url="https://example.com/1",
         content="محتوا",
         source="test",
-        published_at=datetime.now(timezone.utc),
+        published_at=datetime.now(UTC),
     )
 
 

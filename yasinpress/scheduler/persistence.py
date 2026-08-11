@@ -27,7 +27,16 @@ class InMemoryJobStore:
         self._jobs: dict[str, JobSnapshot] = {}
 
     def save(self, job: Job) -> JobSnapshot:
-        snapshot = JobSnapshot(job.id, job.name, job.status, job.attempts, job.created_at, job.started_at, job.finished_at, job.error)
+        snapshot = JobSnapshot(
+            job.id,
+            job.name,
+            job.status,
+            job.attempts,
+            job.created_at,
+            job.started_at,
+            job.finished_at,
+            job.error,
+        )
         self._jobs[job.id] = snapshot
         return snapshot
 
@@ -49,19 +58,26 @@ class JsonJobStore(InMemoryJobStore):
     def save(self, job: Job) -> JobSnapshot:
         snapshot = super().save(job)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps([
-            {
-                "id": item.id,
-                "name": item.name,
-                "status": item.status.value,
-                "attempts": item.attempts,
-                "created_at": item.created_at.isoformat(),
-                "started_at": item.started_at.isoformat() if item.started_at else None,
-                "finished_at": item.finished_at.isoformat() if item.finished_at else None,
-                "error": item.error,
-            }
-            for item in self.all()
-        ], ensure_ascii=False, indent=2), encoding="utf-8")
+        self.path.write_text(
+            json.dumps(
+                [
+                    {
+                        "id": item.id,
+                        "name": item.name,
+                        "status": item.status.value,
+                        "attempts": item.attempts,
+                        "created_at": item.created_at.isoformat(),
+                        "started_at": item.started_at.isoformat() if item.started_at else None,
+                        "finished_at": item.finished_at.isoformat() if item.finished_at else None,
+                        "error": item.error,
+                    }
+                    for item in self.all()
+                ],
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
         return snapshot
 
     def _load(self) -> None:
@@ -70,7 +86,10 @@ class JsonJobStore(InMemoryJobStore):
         raw = json.loads(self.path.read_text(encoding="utf-8"))
         for item in raw:
             self._jobs[item["id"]] = JobSnapshot(
-                item["id"], item["name"], JobStatus(item["status"]), item["attempts"],
+                item["id"],
+                item["name"],
+                JobStatus(item["status"]),
+                item["attempts"],
                 datetime.fromisoformat(item["created_at"]),
                 datetime.fromisoformat(item["started_at"]) if item["started_at"] else None,
                 datetime.fromisoformat(item["finished_at"]) if item["finished_at"] else None,

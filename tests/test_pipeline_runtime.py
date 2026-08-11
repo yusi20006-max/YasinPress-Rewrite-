@@ -16,7 +16,9 @@ def test_pipeline_cleans_validates_and_processes():
 
 
 def test_pipeline_rejects_invalid_url():
-    result = ArticlePipeline("test").process([FeedItem("News", "not-a-url", "Body", datetime.now(UTC))])
+    result = ArticlePipeline("test").process(
+        [FeedItem("News", "not-a-url", "Body", datetime.now(UTC))]
+    )
     assert result.processed == 0
     assert result.rejected == 1
 

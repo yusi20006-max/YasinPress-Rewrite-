@@ -1,7 +1,7 @@
 """Retry policy."""
 
-from collections.abc import Callable
 import time
+from collections.abc import Callable
 
 
 class RetryPolicy:

@@ -1,8 +1,11 @@
 """HTTP feed fetching."""
+
 import httpx
+
 
 class FetchEngine:
     """Fetches remote feed documents."""
+
     def __init__(self, timeout: float = 10.0) -> None:
         self.timeout = timeout
 

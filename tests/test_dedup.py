@@ -1,11 +1,11 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from yasinpress.pipeline.dedup import content_key, unique_items
 from yasinpress.sources.feed import FeedItem
 
 
 def item(title: str, url: str, content: str = "x") -> FeedItem:
-    return FeedItem(title, url, content, datetime.now(timezone.utc))
+    return FeedItem(title, url, content, datetime.now(UTC))
 
 
 def test_unique_items_deduplicates_by_url():

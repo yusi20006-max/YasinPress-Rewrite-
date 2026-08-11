@@ -1,4 +1,5 @@
 """Diagnostics collection."""
+
 import platform
 
 

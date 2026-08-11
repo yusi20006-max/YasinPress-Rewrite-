@@ -20,8 +20,13 @@ class AIConfig:
         return self.enabled and bool(self.api_key) and bool(self.base_url) and bool(self.model)
 
     @classmethod
-    def from_env(cls) -> "AIConfig":
-        enabled = os.getenv("YASINPRESS_AI_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+    def from_env(cls) -> AIConfig:
+        enabled = os.getenv("YASINPRESS_AI_ENABLED", "false").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
         return cls(
             enabled=enabled,
             base_url=os.getenv("YASINPRESS_AI_BASE_URL", cls.base_url),

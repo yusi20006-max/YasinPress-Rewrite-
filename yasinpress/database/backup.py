@@ -1,4 +1,5 @@
 """SQLite backup support."""
+
 import sqlite3
 from pathlib import Path
 

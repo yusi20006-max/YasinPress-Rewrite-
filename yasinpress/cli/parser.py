@@ -1,4 +1,5 @@
 """CLI parser."""
+
 import argparse
 
 

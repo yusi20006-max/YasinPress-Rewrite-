@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Callable
+from datetime import UTC, datetime, timedelta
 
 from yasinpress.scheduler.jobs import JobExecution
 
@@ -25,12 +25,13 @@ class Scheduler:
 
     def __init__(self, queue, *, now: Callable[[], datetime] | None = None) -> None:
         self.queue = queue
-        self.now = now or (lambda: datetime.now(timezone.utc))
+        self.now = now or (lambda: datetime.now(UTC))
         self.tasks: list[ScheduledTask] = []
         self.executions: list[JobExecution] = []
 
     def schedule(self, name: str, task: Callable[[], None], priority: int = 100) -> None:
         from .queue import Job
+
         self.queue.put(Job(priority, name, task))
 
     def add_interval(self, name: str, interval: timedelta, task: Callable[[], None]) -> None:

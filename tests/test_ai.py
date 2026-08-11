@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from yasinpress.ai.base import AIResult
 from yasinpress.ai.mock import FailingAIProvider, MockAIProvider
@@ -13,7 +13,7 @@ def article() -> Article:
         url="https://example.com/1",
         content=" محتوای تست ",
         source="test",
-        published_at=datetime.now(timezone.utc),
+        published_at=datetime.now(UTC),
     )
 
 

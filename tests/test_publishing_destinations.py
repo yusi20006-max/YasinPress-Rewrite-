@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
 import json
+from datetime import UTC, datetime
 
 from yasinpress.database.models import Article
 from yasinpress.publishing import PublishResult
@@ -9,7 +9,9 @@ from yasinpress.publishing.rss import RSSPublisher
 
 
 def article() -> Article:
-    return Article("1", "خبر تست", "https://example.com/1", "محتوا", "test", datetime.now(timezone.utc), "technology")
+    return Article(
+        "1", "خبر تست", "https://example.com/1", "محتوا", "test", datetime.now(UTC), "technology"
+    )
 
 
 def test_all_destination_adapters_share_contract():

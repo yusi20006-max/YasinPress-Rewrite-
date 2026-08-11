@@ -20,8 +20,18 @@ from yasinpress.scheduler.worker import Worker
 
 
 class RuntimeBundle:
-    def __init__(self, *, config: RuntimeConfig, database: SQLiteRepositories, application: YasinPressApplication,
-                 worker: Worker, jobs: PipelineJobFactory, fetcher: FeedFetcher, scheduler: Scheduler, runtime: Runtime) -> None:
+    def __init__(
+        self,
+        *,
+        config: RuntimeConfig,
+        database: SQLiteRepositories,
+        application: YasinPressApplication,
+        worker: Worker,
+        jobs: PipelineJobFactory,
+        fetcher: FeedFetcher,
+        scheduler: Scheduler,
+        runtime: Runtime,
+    ) -> None:
         self.config = config
         self.database = database
         self.application = application
@@ -37,8 +47,9 @@ class RuntimeBundle:
         self.database.close()
 
 
-def build_runtime(*, config: RuntimeConfig | None = None, ai=None,
-                  publishers: Iterable[Publisher] = ()) -> RuntimeBundle:
+def build_runtime(
+    *, config: RuntimeConfig | None = None, ai=None, publishers: Iterable[Publisher] = ()
+) -> RuntimeBundle:
     cfg = config or RuntimeConfig.from_env()
     cfg.validate()
     database = SQLiteRepositories(cfg.database_path)
@@ -49,7 +60,9 @@ def build_runtime(*, config: RuntimeConfig | None = None, ai=None,
 
     recover_jobs(database.jobs, database.jobs.all())
     application = YasinPressApplication(
-        source=cfg.feed_source, ai=ai, publishers=publishers,
+        source=cfg.feed_source,
+        ai=ai,
+        publishers=publishers,
         repositories=database,
         retry_policy=RetryPolicy(max_attempts=cfg.max_job_attempts),
     )
@@ -59,14 +72,26 @@ def build_runtime(*, config: RuntimeConfig | None = None, ai=None,
     scheduler = Scheduler(JobQueue())
 
     if cfg.feed_urls:
+
         def fetch_and_submit() -> None:
             jobs.submit_urls(cfg.feed_urls, fetcher=fetcher)
-        scheduler.add_interval("feed-fetch", timedelta(seconds=cfg.scheduler_interval_seconds), fetch_and_submit)
+
+        scheduler.add_interval(
+            "feed-fetch", timedelta(seconds=cfg.scheduler_interval_seconds), fetch_and_submit
+        )
 
     def tick() -> None:
         scheduler.run_due()
         worker.run_once()
 
     runtime = Runtime(tick, interval_seconds=cfg.worker_interval_seconds)
-    return RuntimeBundle(config=cfg, database=database, application=application, worker=worker,
-                         jobs=jobs, fetcher=fetcher, scheduler=scheduler, runtime=runtime)
+    return RuntimeBundle(
+        config=cfg,
+        database=database,
+        application=application,
+        worker=worker,
+        jobs=jobs,
+        fetcher=fetcher,
+        scheduler=scheduler,
+        runtime=runtime,
+    )

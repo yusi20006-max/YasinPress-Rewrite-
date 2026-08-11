@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
 
 from yasinpress.database.models import Article
-from yasinpress.publishing import PublishResult, Publisher
+from yasinpress.publishing import Publisher, PublishResult
 
 
 @dataclass(frozen=True)
@@ -20,7 +20,9 @@ class RetryPolicy:
 class ReliablePublisher:
     """Retry failed publisher calls with bounded exponential backoff."""
 
-    def __init__(self, publisher: Publisher, policy: RetryPolicy | None = None, sleeper=time.sleep) -> None:
+    def __init__(
+        self, publisher: Publisher, policy: RetryPolicy | None = None, sleeper=time.sleep
+    ) -> None:
         self.publisher = publisher
         self.policy = policy or RetryPolicy()
         self.sleeper = sleeper
@@ -35,10 +37,14 @@ class ReliablePublisher:
             try:
                 result = self.publisher.publish(article)
             except Exception as exc:  # noqa: BLE001 - publisher boundary converts failures to results
-                result = PublishResult(False, self.publisher.name, external_id=article.id, error=str(exc))
+                result = PublishResult(
+                    False, self.publisher.name, external_id=article.id, error=str(exc)
+                )
             last = result
             if result.success:
                 return result
             if attempt < max_attempts:
                 self.sleeper(self.policy.delay(attempt))
-        return last or PublishResult(False, self.publisher.name, external_id=article.id, error="publish failed")
+        return last or PublishResult(
+            False, self.publisher.name, external_id=article.id, error="publish failed"
+        )

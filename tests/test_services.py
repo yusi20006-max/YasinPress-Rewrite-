@@ -14,13 +14,15 @@ def test_cache_manager() -> None:
 
 
 def test_api_health() -> None:
-    app = ApiApp(); app.route("/health", health_route)
+    app = ApiApp()
+    app.route("/health", health_route)
     assert app.handle("/health").status_code == 200
 
 
 def test_scheduler_worker() -> None:
     values: list[str] = []
-    queue = JobQueue(); Scheduler(queue).schedule("append", lambda: values.append("done"), priority=1)
+    queue = JobQueue()
+    Scheduler(queue).schedule("append", lambda: values.append("done"), priority=1)
     Worker(queue).run_once()
     assert values == ["done"]
 

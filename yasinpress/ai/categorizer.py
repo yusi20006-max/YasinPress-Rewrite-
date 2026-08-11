@@ -1,7 +1,9 @@
 """Rule-based categorization."""
 
+
 class Categorizer:
     """Assign categories from content."""
+
     def categorize(self, text: str) -> str:
         """Return a category label."""
         lowered = text.lower()

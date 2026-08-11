@@ -1,4 +1,5 @@
 """CLI status command."""
+
 from yasinpress.monitoring.health import check_health
 
 

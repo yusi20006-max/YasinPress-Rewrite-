@@ -1,9 +1,12 @@
 """Health checks."""
+
 from dataclasses import dataclass
+
 
 @dataclass(frozen=True)
 class HealthStatus:
     """Health check result."""
+
     healthy: bool
     details: dict[str, str]
 

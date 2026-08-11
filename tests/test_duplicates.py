@@ -14,7 +14,9 @@ class FakeRepository:
 
 def test_exact_duplicate_uses_repository_id():
     detector = DuplicateDetector(FakeRepository({"known"}))
-    article = Article(id="known", title="News", url="https://example.com", content="body", source="rss")
+    article = Article(
+        id="known", title="News", url="https://example.com", content="body", source="rss"
+    )
     assert detector.is_duplicate(article)
 
 

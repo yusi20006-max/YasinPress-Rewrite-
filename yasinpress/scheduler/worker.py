@@ -1,26 +1,33 @@
 """Queue worker with lifecycle tracking, retries and persistent state."""
+
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from queue import Empty
-from typing import Callable
 
-from .jobs import Job as LifecycleJob, JobStatus
+from .jobs import Job as LifecycleJob
+from .jobs import JobStatus
 from .persistence import InMemoryJobStore
-from .queue import Job as QueuedJob, JobQueue
+from .queue import Job as QueuedJob
+from .queue import JobQueue
 from .retry import RetryPolicy
 
 
 class Worker:
     """Executes queued tasks and persists their lifecycle snapshots."""
 
-    def __init__(self, queue: JobQueue | None = None, retry: RetryPolicy | None = None, store=None) -> None:
+    def __init__(
+        self, queue: JobQueue | None = None, retry: RetryPolicy | None = None, store=None
+    ) -> None:
         self.queue = queue or JobQueue()
         self.retry = retry or RetryPolicy()
         self.store = store or InMemoryJobStore()
         self._pending: dict[int, LifecycleJob] = {}
 
-    def submit(self, job: LifecycleJob, handler: Callable[[], object], *, priority: int = 0) -> LifecycleJob:
+    def submit(
+        self, job: LifecycleJob, handler: Callable[[], object], *, priority: int = 0
+    ) -> LifecycleJob:
         self.store.save(job)
         task = lambda: handler()
         self._pending[id(task)] = job
@@ -49,7 +56,8 @@ class Worker:
                 lifecycle.error = str(exc)
                 if attempt + 1 < self.retry.attempts:
                     import time
-                    time.sleep(self.retry.delay * (2 ** attempt))
+
+                    time.sleep(self.retry.delay * (2**attempt))
                     continue
                 lifecycle.status = JobStatus.FAILED
             else:

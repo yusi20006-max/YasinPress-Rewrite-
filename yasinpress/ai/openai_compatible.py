@@ -9,7 +9,9 @@ from yasinpress.database.models import Article
 class OpenAICompatibleProvider(AIProvider):
     """Provider adapter for any OpenAI-compatible chat-completions endpoint."""
 
-    def __init__(self, client: Any, *, model: str, provider_name: str = "openai-compatible") -> None:
+    def __init__(
+        self, client: Any, *, model: str, provider_name: str = "openai-compatible"
+    ) -> None:
         self.client = client
         self.model = model
         self._provider_name = provider_name

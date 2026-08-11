@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from yasinpress.database.models import Article
 from yasinpress.database.sqlite import SQLiteDeliveryHistory, SQLiteIdempotencyStore
-from yasinpress.publishing import PublishResult, Publisher
+from yasinpress.publishing import Publisher, PublishResult
 from yasinpress.publishing.history import DeliveryRecord, InMemoryDeliveryHistory
 from yasinpress.publishing.idempotency import IdempotencyStore
 from yasinpress.publishing.orchestrator import PublishingOrchestrator
@@ -32,7 +32,7 @@ class FlakyPublisher(Publisher):
         return PublishResult(True, self.name, external_id=article.id)
 
 
-ARTICLE = Article("1", "title", "https://example.com/1", "body", "test", datetime.now(timezone.utc))
+ARTICLE = Article("1", "title", "https://example.com/1", "body", "test", datetime.now(UTC))
 
 
 def test_publisher_contract():
@@ -53,7 +53,9 @@ def test_reliable_publisher_retries_and_succeeds():
 def test_orchestrator_is_idempotent_after_success():
     publisher = FlakyPublisher(0)
     history = InMemoryDeliveryHistory()
-    orchestrator = PublishingOrchestrator([publisher], retry_policy=RetryPolicy(1), history=history, idempotency=IdempotencyStore())
+    orchestrator = PublishingOrchestrator(
+        [publisher], retry_policy=RetryPolicy(1), history=history, idempotency=IdempotencyStore()
+    )
     assert orchestrator.publish(ARTICLE).success_count == 1
     assert orchestrator.publish(ARTICLE).success_count == 1
     assert publisher.calls == 1
@@ -62,6 +64,7 @@ def test_orchestrator_is_idempotent_after_success():
 
 def test_sqlite_publishing_state():
     import sqlite3
+
     conn = sqlite3.connect(":memory:")
     history = SQLiteDeliveryHistory(conn)
     history.add(DeliveryRecord("1", "mock", True, 1, "1", None))

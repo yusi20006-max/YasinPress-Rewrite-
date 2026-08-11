@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime
 
 from yasinpress.publishing.history import DeliveryRecord
 
@@ -34,8 +34,15 @@ class SQLiteDeliveryRepository:
                  success=excluded.success, attempts=excluded.attempts,
                  external_id=excluded.external_id, error=excluded.error,
                  created_at=excluded.created_at""",
-            (record.article_id, record.destination, int(record.success), record.attempts,
-             record.external_id, record.error, record.created_at.isoformat()),
+            (
+                record.article_id,
+                record.destination,
+                int(record.success),
+                record.attempts,
+                record.external_id,
+                record.error,
+                record.created_at.isoformat(),
+            ),
         )
         self.connection.commit()
 
@@ -47,9 +54,12 @@ class SQLiteDeliveryRepository:
         if row is None:
             return None
         return DeliveryRecord(
-            article_id=row["article_id"], destination=row["destination"],
-            success=bool(row["success"]), attempts=row["attempts"],
-            external_id=row["external_id"], error=row["error"],
+            article_id=row["article_id"],
+            destination=row["destination"],
+            success=bool(row["success"]),
+            attempts=row["attempts"],
+            external_id=row["external_id"],
+            error=row["error"],
             created_at=datetime.fromisoformat(row["created_at"]),
         )
 

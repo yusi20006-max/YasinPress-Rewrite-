@@ -11,6 +11,8 @@ def test_clean_html() -> None:
 
 
 def test_normalize_and_validate() -> None:
-    article = normalize(FeedItem("Title", "https://example.com/a", "Body", datetime.now(UTC)), "src")
+    article = normalize(
+        FeedItem("Title", "https://example.com/a", "Body", datetime.now(UTC)), "src"
+    )
     validate_article(article)
     assert article.source == "src"

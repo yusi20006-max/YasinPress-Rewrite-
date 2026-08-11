@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from yasinpress.ai.base import AIProvider
 from yasinpress.database.models import Article
@@ -21,9 +21,16 @@ class ApplicationReport:
 class YasinPressApplication:
     """Composition root for feed → AI → persistence → publishing."""
 
-    def __init__(self, *, source: str = "rss", ai: AIProvider | None = None,
-                 publishers: Iterable[Publisher] = (), repository: SQLiteArticleRepository | None = None,
-                 repositories: SQLiteRepositories | None = None, retry_policy: RetryPolicy | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        source: str = "rss",
+        ai: AIProvider | None = None,
+        publishers: Iterable[Publisher] = (),
+        repository: SQLiteArticleRepository | None = None,
+        repositories: SQLiteRepositories | None = None,
+        retry_policy: RetryPolicy | None = None,
+    ) -> None:
         self.repositories = repositories
         if repository is not None:
             self.repository = repository
@@ -32,7 +39,9 @@ class YasinPressApplication:
         else:
             self.repository = SQLiteArticleRepository()
         self.processing = ProcessingService(
-            source=source, ai=ai, publishers=publishers,
+            source=source,
+            ai=ai,
+            publishers=publishers,
             history=repositories.delivery_history if repositories else None,
             idempotency=repositories.idempotency if repositories else None,
             retry_policy=retry_policy,

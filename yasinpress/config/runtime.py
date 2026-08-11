@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
@@ -15,15 +15,21 @@ class RuntimeConfig:
     feed_source: str = "rss"
 
     @classmethod
-    def from_env(cls) -> "RuntimeConfig":
+    def from_env(cls) -> RuntimeConfig:
         raw_feeds = os.getenv("YASINPRESS_FEEDS", "")
         feeds = tuple(url.strip() for url in raw_feeds.split(",") if url.strip())
         return cls(
             database_path=os.getenv("YASINPRESS_DATABASE", cls.database_path),
-            worker_interval_seconds=float(os.getenv("YASINPRESS_WORKER_INTERVAL", cls.worker_interval_seconds)),
-            scheduler_interval_seconds=float(os.getenv("YASINPRESS_SCHEDULER_INTERVAL", cls.scheduler_interval_seconds)),
+            worker_interval_seconds=float(
+                os.getenv("YASINPRESS_WORKER_INTERVAL", cls.worker_interval_seconds)
+            ),
+            scheduler_interval_seconds=float(
+                os.getenv("YASINPRESS_SCHEDULER_INTERVAL", cls.scheduler_interval_seconds)
+            ),
             max_job_attempts=int(os.getenv("YASINPRESS_MAX_JOB_ATTEMPTS", cls.max_job_attempts)),
-            request_timeout_seconds=float(os.getenv("YASINPRESS_REQUEST_TIMEOUT", cls.request_timeout_seconds)),
+            request_timeout_seconds=float(
+                os.getenv("YASINPRESS_REQUEST_TIMEOUT", cls.request_timeout_seconds)
+            ),
             feed_urls=feeds,
             feed_source=os.getenv("YASINPRESS_FEED_SOURCE", cls.feed_source),
         )

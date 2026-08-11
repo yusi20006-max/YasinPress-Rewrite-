@@ -4,7 +4,7 @@ from email.utils import format_datetime
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 from yasinpress.database.models import Article
-from yasinpress.publishing import PublishResult, Publisher
+from yasinpress.publishing import Publisher, PublishResult
 
 
 class RSSPublisher(Publisher):

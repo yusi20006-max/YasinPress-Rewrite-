@@ -11,9 +11,7 @@ def test_job_execution_success_and_failure():
     assert success.started_at is not None
     assert success.finished_at is not None
 
-    failure = JobExecution(name="bad").run(
-        lambda: (_ for _ in ()).throw(RuntimeError("boom"))
-    )
+    failure = JobExecution(name="bad").run(lambda: (_ for _ in ()).throw(RuntimeError("boom")))
     assert failure.status is JobStatus.FAILED
     assert failure.error == "boom"
 

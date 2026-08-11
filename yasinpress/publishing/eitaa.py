@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from yasinpress.database.models import Article
-from yasinpress.publishing import PublishResult, Publisher
+from yasinpress.publishing import Publisher, PublishResult
 
 
 class EitaaPublisher(Publisher):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from yasinpress.fetch.feed import FeedFetcher
 from yasinpress.pipeline.application import YasinPressApplication
@@ -18,12 +18,14 @@ class PipelineJobFactory:
     def submit(self, items: Iterable[object]) -> Job:
         materialized = tuple(items)
         from yasinpress.scheduler.jobs import new_job
+
         job = new_job("process-feed")
         return self.worker.submit(job, lambda: self.app.process_items(materialized))
 
     def submit_urls(self, urls: tuple[str, ...], *, fetcher: FeedFetcher | None = None) -> Job:
         feed_fetcher = fetcher or FeedFetcher()
         from yasinpress.scheduler.jobs import new_job
+
         job = new_job("fetch-and-process-feeds")
 
         def execute() -> None:

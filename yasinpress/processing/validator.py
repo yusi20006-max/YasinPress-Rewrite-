@@ -1,4 +1,5 @@
 """Article validation."""
+
 from yasinpress.database.models import Article
 
 

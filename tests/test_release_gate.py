@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from yasinpress import __version__
-from yasinpress.publishing import PublishResult, Publisher
+from yasinpress.publishing import Publisher, PublishResult
 
 
 def test_release_contract_is_available():

@@ -1,4 +1,5 @@
 """Configuration validation."""
+
 from typing import Any
 
 

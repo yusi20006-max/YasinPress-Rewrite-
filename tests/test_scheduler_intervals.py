@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from yasinpress.scheduler.queue import JobQueue
 from yasinpress.scheduler.scheduler import Scheduler
 
 
 def test_interval_scheduler_runs_due_tasks():
-    now = [datetime(2026, 1, 1, tzinfo=timezone.utc)]
+    now = [datetime(2026, 1, 1, tzinfo=UTC)]
     calls = []
     scheduler = Scheduler(JobQueue(), now=lambda: now[0])
     scheduler.add_interval("feed", timedelta(seconds=10), lambda: calls.append("feed"))

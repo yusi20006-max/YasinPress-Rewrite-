@@ -33,9 +33,16 @@ class SQLiteJobRepository:
                ON CONFLICT(id) DO UPDATE SET
                  name=excluded.name,status=excluded.status,attempts=excluded.attempts,
                  started_at=excluded.started_at,finished_at=excluded.finished_at,error=excluded.error""",
-            (job.id, job.name, job.status.value, job.attempts, job.created_at.isoformat(),
-             job.started_at.isoformat() if job.started_at else None,
-             job.finished_at.isoformat() if job.finished_at else None, job.error),
+            (
+                job.id,
+                job.name,
+                job.status.value,
+                job.attempts,
+                job.created_at.isoformat(),
+                job.started_at.isoformat() if job.started_at else None,
+                job.finished_at.isoformat() if job.finished_at else None,
+                job.error,
+            ),
         )
         self.connection.commit()
 
@@ -52,8 +59,11 @@ class SQLiteJobRepository:
     @staticmethod
     def _from_row(row: sqlite3.Row) -> Job:
         return Job(
-            id=row["id"], name=row["name"], status=JobStatus(row["status"]),
-            attempts=row["attempts"], created_at=datetime.fromisoformat(row["created_at"]),
+            id=row["id"],
+            name=row["name"],
+            status=JobStatus(row["status"]),
+            attempts=row["attempts"],
+            created_at=datetime.fromisoformat(row["created_at"]),
             started_at=datetime.fromisoformat(row["started_at"]) if row["started_at"] else None,
             finished_at=datetime.fromisoformat(row["finished_at"]) if row["finished_at"] else None,
             error=row["error"],

@@ -1,11 +1,15 @@
 """Core settings model."""
-from dataclasses import dataclass
+
 import os
+from dataclasses import dataclass
+
 from .constants import DEFAULT_DATABASE_PATH
+
 
 @dataclass(frozen=True)
 class Settings:
     """Typed application settings."""
+
     environment: str = "production"
     database_path: str = DEFAULT_DATABASE_PATH
     log_level: str = "INFO"

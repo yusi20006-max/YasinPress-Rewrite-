@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from yasinpress.database.models import Article
-from yasinpress.publishing import PublishResult, Publisher
+from yasinpress.publishing import Publisher, PublishResult
 from yasinpress.publishing.history import DeliveryRecord, InMemoryDeliveryHistory
 from yasinpress.publishing.reliability import ReliablePublisher, RetryPolicy
 
@@ -23,12 +23,14 @@ class FlakyPublisher(Publisher):
 
 
 def article() -> Article:
-    return Article("1", "title", "https://example.com", "content", "test", datetime.now(timezone.utc))
+    return Article("1", "title", "https://example.com", "content", "test", datetime.now(UTC))
 
 
 def test_reliable_publisher_retries_until_success():
     publisher = FlakyPublisher(2)
-    result = ReliablePublisher(publisher, RetryPolicy(max_attempts=3), sleeper=lambda _: None).publish(article())
+    result = ReliablePublisher(
+        publisher, RetryPolicy(max_attempts=3), sleeper=lambda _: None
+    ).publish(article())
     assert result.success
     assert publisher.calls == 3
 

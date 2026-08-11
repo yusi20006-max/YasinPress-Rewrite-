@@ -7,14 +7,14 @@ from yasinpress.ai.safe import SafeAIEnricher
 from yasinpress.database.models import Article
 from yasinpress.database.repositories import ArticleRepository
 from yasinpress.processing.breaking import BreakingResult, detect_breaking
-from yasinpress.processing.cleaner import clean_html
 from yasinpress.processing.classifier import classify
+from yasinpress.processing.cleaner import clean_html
 from yasinpress.processing.duplicates import DuplicateDetector
 from yasinpress.processing.enrichment import ArticleEnricher
 from yasinpress.processing.freshness import is_fresh
+from yasinpress.processing.normalization import normalize
 from yasinpress.processing.priority import PriorityResult, calculate_priority
 from yasinpress.processing.validator import validate_article
-from yasinpress.processing.normalization import normalize
 from yasinpress.sources.feed import FeedItem
 
 

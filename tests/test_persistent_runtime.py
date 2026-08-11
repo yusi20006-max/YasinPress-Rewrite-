@@ -1,18 +1,18 @@
-from datetime import datetime, timezone
 import sqlite3
+from datetime import UTC, datetime
 
 from yasinpress.database.delivery import SQLiteDeliveryRepository
 from yasinpress.database.jobs import SQLiteJobRepository
 from yasinpress.publishing.history import DeliveryRecord
 from yasinpress.runtime import Runtime
-from yasinpress.scheduler.jobs import new_job, JobStatus
+from yasinpress.scheduler.jobs import JobStatus, new_job
 
 
 def test_delivery_history_round_trip():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     repo = SQLiteDeliveryRepository(conn)
-    record = DeliveryRecord("a1", "pwa", True, 2, external_id="x", created_at=datetime.now(timezone.utc))
+    record = DeliveryRecord("a1", "pwa", True, 2, external_id="x", created_at=datetime.now(UTC))
     repo.record(record)
     assert repo.delivered("a1", "pwa")
     assert repo.get("a1", "pwa").attempts == 2

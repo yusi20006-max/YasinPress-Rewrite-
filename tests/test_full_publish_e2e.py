@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from yasinpress.database.models import Article
 from yasinpress.database.sqlite import SQLiteRepositories
@@ -28,7 +28,7 @@ def test_full_feed_to_persistent_publish_and_idempotency(tmp_path):
         repositories=db,
         retry_policy=RetryPolicy(1, 0, 0),
     )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     item = FeedItem("title", "https://example.com/item", "body", now)
 
     first = app.process_items([item])

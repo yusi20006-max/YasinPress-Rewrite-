@@ -1,6 +1,8 @@
 """CLI command dispatch."""
+
 from yasinpress import __version__
 from yasinpress.config.runtime import RuntimeConfig
+
 from .status import status_text
 
 

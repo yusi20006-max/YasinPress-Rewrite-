@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from hashlib import sha256
-from typing import Iterable
 
 from yasinpress.sources.feed import FeedItem
 

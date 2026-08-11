@@ -1,6 +1,5 @@
 from yasinpress.fetch.feed import FeedFetcher
 
-
 RSS = """<rss><channel><item><title>Test</title><link>https://example.com/a</link><description>Hello</description></item></channel></rss>"""
 
 

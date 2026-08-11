@@ -14,7 +14,9 @@ class NoOpAIProvider(AIProvider):
         return "none"
 
     def enrich(self, article: Article) -> AIResult:
-        return AIResult(article.title, article.content, self.name, success=False, error="AI disabled")
+        return AIResult(
+            article.title, article.content, self.name, success=False, error="AI disabled"
+        )
 
 
 def create_ai_provider(config: AIConfig, *, client: Any | None = None) -> AIProvider:

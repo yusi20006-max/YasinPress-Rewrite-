@@ -1,6 +1,5 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from yasinpress.database.models import Article
 from yasinpress.pipeline.application import YasinPressApplication
 
 
@@ -10,7 +9,7 @@ class Item:
         self.url = url
         self.content = content
         self.source = "test"
-        self.published_at = datetime.now(timezone.utc)
+        self.published_at = datetime.now(UTC)
         self.category = "tech"
 
 

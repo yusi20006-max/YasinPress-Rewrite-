@@ -1,8 +1,11 @@
 """Article summarization."""
+
 from .providers import AIProvider
+
 
 class Summarizer:
     """Generate article summaries."""
+
     def __init__(self, provider: AIProvider) -> None:
         self.provider = provider
 

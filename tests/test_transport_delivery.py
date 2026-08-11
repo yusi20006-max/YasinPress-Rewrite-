@@ -1,10 +1,10 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
 from yasinpress.database.models import Article
-from yasinpress.publishing.rss import RSSPublisher
 from yasinpress.publishing.delivery import DeliveryTarget, HTTPDelivery
+from yasinpress.publishing.rss import RSSPublisher
 from yasinpress.transport.http import HTTPTransport
 
 
@@ -15,7 +15,7 @@ def article() -> Article:
         url="https://example.com/1",
         content="محتوا",
         source="test",
-        published_at=datetime.now(timezone.utc),
+        published_at=datetime.now(UTC),
     )
 
 
@@ -29,7 +29,9 @@ def test_http_delivery_success():
     client = httpx.Client(transport=httpx.MockTransport(handler))
     with HTTPTransport(client=client) as transport:
         result = HTTPDelivery(transport).deliver(
-            RSSPublisher(), article(), DeliveryTarget("rss-api", "https://example.test/publish", "application/xml")
+            RSSPublisher(),
+            article(),
+            DeliveryTarget("rss-api", "https://example.test/publish", "application/xml"),
         )
     assert result.success
     assert result.external_id == "1"
