@@ -8,19 +8,27 @@ import os
 from yasinpress.config.runtime import RuntimeConfig
 from yasinpress.health import check_database
 from yasinpress.runtime_factory import build_runtime
-from yasinpress.sources.catalog import RSSFeed, active_feeds
+from yasinpress.sources.catalog import RSSFeed, active_feeds, probe_feed
 
 
 def _startup_feed_setup() -> None:
-    """Discover active RSS feeds when none are configured."""
+    """Validate configured RSS feeds and discover live alternatives when needed."""
     configured = tuple(
         url.strip() for url in os.getenv("YASINPRESS_FEEDS", "").split(",") if url.strip()
     )
     if configured:
-        print("RSS feeds configured:")
-        for url in configured:
-            print(f"  - {url}")
-        return
+        valid = tuple(
+            feed
+            for feed in (probe_feed(RSSFeed(f"Configured RSS {i}", url)) for i, url in enumerate(configured, 1))
+            if feed is not None
+        )
+        if valid:
+            print("RSS feeds active:")
+            for feed in valid:
+                print(f"  ✓ {feed.url}")
+            os.environ["YASINPRESS_FEEDS"] = ",".join(feed.url for feed in valid)
+            return
+        print("Configured RSS feeds are not responding. Discovering active feeds...")
 
     try:
         answer = input("آیا RSS جدیدی برای اضافه کردن دارید؟ [y/N]: ").strip().lower()
