@@ -18,7 +18,6 @@ def test_job_execution_success_and_failure():
 
 def test_scheduler_runs_due_interval_task():
     queue = JobQueue()
-    now = [Scheduler.__init__]
     scheduler = Scheduler(queue)
     calls = []
     scheduler.add_interval("task", timedelta(seconds=1), lambda: calls.append("ran"))
