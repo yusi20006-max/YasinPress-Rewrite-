@@ -118,14 +118,17 @@ def build_runtime(
                 if processing is not None:
                     publications = processing.publications
                     now = datetime.now(UTC).astimezone()
+                    sent = publications.success_count
+                    already = processing.duplicate_count + publications.skipped_count
                     print(
                         f"[{now:%Y-%m-%d %H:%M:%S %Z}] Publishing report: "
                         f"{report.received_count} received, "
-                        f"{publications.success_count} sent, "
-                        f"{publications.skipped_count} already sent, "
+                        f"{sent} sent, "
+                        f"{already} already sent, "
                         f"{publications.failure_count} failed, "
                         f"{processing.queued_count} queued, "
-                        f"{processing.old_count} old (>6h)",
+                        f"{processing.old_count} old (>6h), "
+                        f"hourly limit={cfg.max_publications_per_hour}",
                         flush=True,
                     )
 
