@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import timedelta
+from urllib.parse import urlparse
 
 from yasinpress.config.runtime import RuntimeConfig
 from yasinpress.database.sqlite import SQLiteRepositories
@@ -61,6 +62,12 @@ def _configured_publishers(config: RuntimeConfig) -> tuple[Publisher, ...]:
     )
 
 
+def _feed_label(url: str) -> str:
+    """Return a compact source label for terminal activity messages."""
+    hostname = urlparse(url).hostname or url
+    return hostname.removeprefix("www.")
+
+
 def build_runtime(
     *, config: RuntimeConfig | None = None, ai=None, publishers: Iterable[Publisher] | None = None
 ) -> RuntimeBundle:
@@ -82,7 +89,11 @@ def build_runtime(
         retry_policy=RetryPolicy(max_attempts=cfg.max_job_attempts),
     )
     worker = Worker(retry=JobRetryPolicy(attempts=cfg.max_job_attempts), store=database.jobs)
-    jobs = PipelineJobFactory(application, worker)
+
+    def on_feed_received(source: str, count: int) -> None:
+        print(f"{count} news received from {_feed_label(source)}", flush=True)
+
+    jobs = PipelineJobFactory(application, worker, on_feed_received=on_feed_received)
     fetcher = FeedFetcher(timeout=cfg.request_timeout_seconds)
     scheduler = Scheduler(JobQueue())
 
