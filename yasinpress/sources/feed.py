@@ -14,6 +14,7 @@ class FeedItem:
     url: str
     content: str
     published_at: datetime
+    source: str = ""
 
 
 def _published_at(item: ET.Element) -> datetime:
