@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Self
 
 import httpx
 
@@ -23,11 +23,15 @@ class HTTPTransport:
         self._owned = client is None
         self.client = client or httpx.Client(timeout=timeout)
 
-    def post_json(self, url: str, payload: dict[str, Any], *, headers: dict[str, str] | None = None) -> HTTPResponse:
+    def post_json(
+        self, url: str, payload: dict[str, Any], *, headers: dict[str, str] | None = None
+    ) -> HTTPResponse:
         response = self.client.post(url, json=payload, headers=headers)
         return HTTPResponse(response.status_code, response.text)
 
-    def post_text(self, url: str, content: str, *, headers: dict[str, str] | None = None) -> HTTPResponse:
+    def post_text(
+        self, url: str, content: str, *, headers: dict[str, str] | None = None
+    ) -> HTTPResponse:
         response = self.client.post(url, content=content, headers=headers)
         return HTTPResponse(response.status_code, response.text)
 
@@ -35,7 +39,7 @@ class HTTPTransport:
         if self._owned:
             self.client.close()
 
-    def __enter__(self) -> "HTTPTransport":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
