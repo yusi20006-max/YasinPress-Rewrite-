@@ -36,25 +36,11 @@ class PipelineJobFactory:
 
         def execute() -> None:
             results = feed_fetcher.fetch_many(urls)
-            total_received = 0
             for result in results:
-                count = len(result.items)
-                total_received += count
                 if self.on_feed_received is not None:
-                    self.on_feed_received(result.source, count)
+                    self.on_feed_received(result.source, len(result.items))
             items = tuple(item for result in results for item in result.items)
-            report = self.app.process_items(items)
-            processing = report.processing
-            published = processing.publications.success_count
-            failed = processing.publications.failure_count
-            print(
-                "Publishing report: "
-                f"{published} sent, {failed} failed, "
-                f"{processing.queued_count} queued, "
-                f"{processing.old_count} old (>6h), "
-                f"{report.persisted_count} processed ({total_received} received)",
-                flush=True,
-            )
+            return self.app.process_items(items)
 
         return self.worker.submit(job, execute)
 
