@@ -1,9 +1,10 @@
 """Duplicate detection services."""
 from __future__ import annotations
 
-from collections.abc import Protocol, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+from typing import Protocol
 
 from yasinpress.database.models import Article
 
