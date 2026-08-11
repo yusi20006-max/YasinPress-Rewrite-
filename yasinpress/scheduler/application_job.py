@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from yasinpress.fetch.feed import FeedFetcher
 from yasinpress.pipeline.application import YasinPressApplication
@@ -11,9 +11,15 @@ from yasinpress.scheduler.worker import Worker
 class PipelineJobFactory:
     """Turns feed items or URLs into executable scheduler jobs."""
 
-    def __init__(self, app: YasinPressApplication, worker: Worker | None = None) -> None:
+    def __init__(
+        self,
+        app: YasinPressApplication,
+        worker: Worker | None = None,
+        on_feed_received: Callable[[str, int], None] | None = None,
+    ) -> None:
         self.app = app
         self.worker = worker or Worker()
+        self.on_feed_received = on_feed_received
 
     def submit(self, items: Iterable[object]) -> Job:
         materialized = tuple(items)
@@ -30,6 +36,9 @@ class PipelineJobFactory:
 
         def execute() -> None:
             results = feed_fetcher.fetch_many(urls)
+            for result in results:
+                if self.on_feed_received is not None:
+                    self.on_feed_received(result.source, len(result.items))
             items = tuple(item for result in results for item in result.items)
             self.app.process_items(items)
 
