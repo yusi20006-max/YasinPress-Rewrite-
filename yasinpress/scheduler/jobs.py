@@ -30,6 +30,32 @@ class Job:
             self.created_at = datetime.now(timezone.utc)
 
 
+@dataclass
+class JobExecution:
+    """Runtime execution record for a scheduled task."""
+
+    name: str
+    status: JobStatus = JobStatus.PENDING
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    error: str | None = None
+
+    def run(self, handler: Callable[[], object]) -> JobExecution:
+        self.status = JobStatus.RUNNING
+        self.started_at = datetime.now(timezone.utc)
+        try:
+            handler()
+        except Exception as exc:
+            self.status = JobStatus.FAILED
+            self.error = str(exc)
+        else:
+            self.status = JobStatus.SUCCEEDED
+            self.error = None
+        finally:
+            self.finished_at = datetime.now(timezone.utc)
+        return self
+
+
 class JobRunner:
     """Small deterministic job runner; scheduling policy is intentionally separate."""
 
