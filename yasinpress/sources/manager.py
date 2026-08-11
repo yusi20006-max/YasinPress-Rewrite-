@@ -1,15 +1,20 @@
 """Source registry."""
+
 from dataclasses import dataclass
+
 
 @dataclass(frozen=True)
 class Source:
     """RSS source definition."""
+
     name: str
     url: str
     enabled: bool = True
 
+
 class SourceManager:
     """Manage configured sources."""
+
     def __init__(self, sources: list[Source] | None = None) -> None:
         self._sources = sources or []
 
