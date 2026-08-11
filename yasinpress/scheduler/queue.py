@@ -1,12 +1,14 @@
 """Priority queue primitives."""
+
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from queue import Empty, PriorityQueue
-from typing import Callable
+from queue import PriorityQueue
 
 
 @dataclass(order=True)
 class Job:
     """Queued unit of work."""
+
     priority: int
     name: str = field(compare=False)
     task: Callable[[], object] = field(compare=False)
