@@ -1,8 +1,11 @@
 from datetime import UTC, datetime
 
+import httpx
+
 from yasinpress.database.models import Article
 from yasinpress.database.sqlite import SQLiteDeliveryHistory, SQLiteIdempotencyStore
 from yasinpress.publishing import Publisher, PublishResult
+from yasinpress.publishing.eitaa import EitaaPublisher
 from yasinpress.publishing.history import DeliveryRecord, InMemoryDeliveryHistory
 from yasinpress.publishing.idempotency import IdempotencyStore
 from yasinpress.publishing.orchestrator import PublishingOrchestrator
@@ -40,6 +43,58 @@ def test_publisher_contract():
     assert result.success
     assert result.destination == "mock"
     assert result.external_id == "1"
+
+
+def test_eitaa_publisher_sends_message(monkeypatch):
+    captured = {}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"ok": True, "result": {"message_id": 42}}
+
+    def fake_post(url, *, data, timeout):
+        captured.update(url=url, data=data, timeout=timeout)
+        return Response()
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    result = EitaaPublisher(token="bot-token", channel="123").publish(ARTICLE)
+
+    assert result.success
+    assert result.destination == "eitaa"
+    assert result.external_id == "42"
+    assert captured["url"] == "https://eitaayar.ir/api/bot-token/sendMessage"
+    assert captured["data"]["chat_id"] == "123"
+    assert captured["data"]["text"] == "title\n\nbody\n\nhttps://example.com/1"
+
+
+def test_eitaa_publisher_reports_api_rejection(monkeypatch):
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"ok": False, "error": "invalid token"}
+
+    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    result = EitaaPublisher(token="bad", channel="123").publish(ARTICLE)
+
+    assert not result.success
+    assert result.destination == "eitaa"
+    assert "invalid token" in (result.error or "")
+
+
+def test_eitaa_publisher_reports_transport_failure(monkeypatch):
+    def fake_post(*args, **kwargs):
+        raise httpx.ConnectError("offline")
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    result = EitaaPublisher(token="token", channel="123").publish(ARTICLE)
+
+    assert not result.success
+    assert "request failed" in (result.error or "")
 
 
 def test_reliable_publisher_retries_and_succeeds():
