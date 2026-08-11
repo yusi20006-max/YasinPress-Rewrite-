@@ -9,6 +9,7 @@ from yasinpress.fetch.feed import FeedFetcher
 from yasinpress.health import check_database
 from yasinpress.pipeline.application import YasinPressApplication
 from yasinpress.publishing import Publisher
+from yasinpress.publishing.eitaa import EitaaPublisher
 from yasinpress.publishing.reliability import RetryPolicy
 from yasinpress.recovery import recover_jobs
 from yasinpress.runtime import Runtime
@@ -47,8 +48,21 @@ class RuntimeBundle:
         self.database.close()
 
 
+def _configured_publishers(config: RuntimeConfig) -> tuple[Publisher, ...]:
+    """Build outbound publishers from runtime configuration."""
+    if not config.eitaa_bot_token:
+        return ()
+    return (
+        EitaaPublisher(
+            channel=config.eitaa_channel,
+            token=config.eitaa_bot_token,
+            timeout_seconds=config.request_timeout_seconds,
+        ),
+    )
+
+
 def build_runtime(
-    *, config: RuntimeConfig | None = None, ai=None, publishers: Iterable[Publisher] = ()
+    *, config: RuntimeConfig | None = None, ai=None, publishers: Iterable[Publisher] | None = None
 ) -> RuntimeBundle:
     cfg = config or RuntimeConfig.from_env()
     cfg.validate()
@@ -59,10 +73,11 @@ def build_runtime(
         raise RuntimeError(f"database readiness check failed: {health.message}")
 
     recover_jobs(database.jobs, database.jobs.all())
+    configured = tuple(publishers) if publishers is not None else _configured_publishers(cfg)
     application = YasinPressApplication(
         source=cfg.feed_source,
         ai=ai,
-        publishers=publishers,
+        publishers=configured,
         repositories=database,
         retry_policy=RetryPolicy(max_attempts=cfg.max_job_attempts),
     )
