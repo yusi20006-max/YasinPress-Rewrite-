@@ -16,6 +16,7 @@ from yasinpress.sources.feed import FeedItem
 class ApplicationReport:
     processing: ProcessingReport
     persisted_count: int
+    received_count: int = 0
 
 
 class YasinPressApplication:
@@ -52,9 +53,14 @@ class YasinPressApplication:
         )
 
     def process_items(self, items: Iterable[FeedItem]) -> ApplicationReport:
-        report = self.processing.process(items)
+        materialized = tuple(items)
+        report = self.processing.process(materialized)
         self.repository.save_many(report.pipeline.articles)
-        return ApplicationReport(report, len(report.pipeline.articles))
+        return ApplicationReport(
+            report,
+            len(report.pipeline.articles),
+            received_count=len(materialized),
+        )
 
     def get_article(self, article_id: str) -> Article | None:
         return self.repository.get(article_id)
