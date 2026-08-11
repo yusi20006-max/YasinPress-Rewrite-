@@ -44,10 +44,14 @@ class PipelineJobFactory:
                     self.on_feed_received(result.source, count)
             items = tuple(item for result in results for item in result.items)
             report = self.app.process_items(items)
-            published = report.processing.publications.success_count
-            failed = report.processing.publications.failure_count
+            processing = report.processing
+            published = processing.publications.success_count
+            failed = processing.publications.failure_count
             print(
-                f"Publishing report: {published} sent, {failed} failed, "
+                "Publishing report: "
+                f"{published} sent, {failed} failed, "
+                f"{processing.queued_count} queued, "
+                f"{processing.old_count} old (>6h), "
                 f"{report.persisted_count} processed ({total_received} received)",
                 flush=True,
             )
