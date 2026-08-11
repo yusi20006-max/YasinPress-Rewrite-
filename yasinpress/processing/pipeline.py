@@ -35,7 +35,7 @@ class ArticlePipeline:
         self,
         repository: ArticleRepository,
         *,
-        max_age: timedelta = timedelta(hours=24),
+        max_age: timedelta = timedelta(hours=12),
         ai: SafeAIEnricher | None = None,
     ) -> None:
         self.repository = repository
@@ -45,7 +45,9 @@ class ArticlePipeline:
 
     def process(self, item: FeedItem, *, source: str) -> ProcessedArticle | None:
         article = normalize(item, source)
-        if not is_fresh(article.published_at, max_age=self.max_age):
+        breaking = detect_breaking(article.title, article.content)
+        # Breaking/urgent stories can bypass the normal freshness gate.
+        if not breaking.is_breaking and not is_fresh(article.published_at, max_age=self.max_age):
             return None
         if self.duplicates.is_duplicate(article):
             return None
