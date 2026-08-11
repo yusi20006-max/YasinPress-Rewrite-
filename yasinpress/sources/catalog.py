@@ -30,7 +30,8 @@ RSS_CATALOG: tuple[RSSFeed, ...] = (
 )
 
 
-def _check_feed(feed: RSSFeed, timeout: float) -> RSSFeed | None:
+def probe_feed(feed: RSSFeed, timeout: float = 5.0) -> RSSFeed | None:
+    """Return a feed only when its endpoint responds with parseable entries."""
     try:
         response = httpx.get(feed.url, timeout=timeout, follow_redirects=True)
         response.raise_for_status()
@@ -48,7 +49,7 @@ def active_feeds(timeout: float = 5.0) -> tuple[RSSFeed, ...]:
     """Return catalog feeds that currently respond with parseable entries."""
     active: list[RSSFeed] = []
     with ThreadPoolExecutor(max_workers=min(8, len(RSS_CATALOG))) as pool:
-        futures = {pool.submit(_check_feed, feed, timeout): feed for feed in RSS_CATALOG}
+        futures = {pool.submit(probe_feed, feed, timeout): feed for feed in RSS_CATALOG}
         for future in as_completed(futures):
             result = future.result()
             if result is not None:
