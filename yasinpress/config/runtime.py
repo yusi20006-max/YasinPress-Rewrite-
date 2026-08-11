@@ -16,6 +16,8 @@ class RuntimeConfig:
     eitaa_token: str = ""
     eitaa_channel: str = ""
     eitaa_api_base: str = "https://eitaayar.ir/api"
+    max_article_age_hours: float = 6.0
+    max_publications_per_hour: int = 10
 
     @classmethod
     def from_env(cls) -> RuntimeConfig:
@@ -38,6 +40,12 @@ class RuntimeConfig:
             eitaa_token=os.getenv("YASINPRESS_EITAA_TOKEN", "").strip(),
             eitaa_channel=os.getenv("YASINPRESS_EITAA_CHANNEL", "").strip(),
             eitaa_api_base=os.getenv("YASINPRESS_EITAA_API_BASE", cls.eitaa_api_base).strip(),
+            max_article_age_hours=float(
+                os.getenv("YASINPRESS_MAX_ARTICLE_AGE_HOURS", cls.max_article_age_hours)
+            ),
+            max_publications_per_hour=int(
+                os.getenv("YASINPRESS_MAX_PUBLICATIONS_PER_HOUR", cls.max_publications_per_hour)
+            ),
         )
 
     def validate(self) -> None:
@@ -49,6 +57,10 @@ class RuntimeConfig:
             raise ValueError("max_job_attempts must be >= 1")
         if self.request_timeout_seconds <= 0:
             raise ValueError("request_timeout_seconds must be positive")
+        if self.max_article_age_hours <= 0:
+            raise ValueError("max_article_age_hours must be positive")
+        if self.max_publications_per_hour < 1:
+            raise ValueError("max_publications_per_hour must be >= 1")
         if not self.feed_source:
             raise ValueError("feed_source must not be empty")
         if bool(self.eitaa_token) != bool(self.eitaa_channel):
