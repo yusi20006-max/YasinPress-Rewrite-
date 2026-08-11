@@ -29,9 +29,13 @@ class ArticlePipeline:
         rejected = 0
         for item in items:
             normalized = FeedItem(
-                item.title.strip(), item.url.strip(), clean_html(item.content), item.published_at
+                item.title.strip(),
+                item.url.strip(),
+                clean_html(item.content),
+                item.published_at,
+                item.source,
             )
-            article = normalize(normalized, self.source)
+            article = normalize(normalized, item.source or self.source)
             if self.duplicate(article):
                 continue
             try:
