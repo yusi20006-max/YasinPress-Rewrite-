@@ -110,7 +110,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         _startup_channel_setup()
         _startup_feed_setup()
-        print("YasinPress is active")
 
     bundle = build_runtime()
     try:
