@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 import httpx
 
 from yasinpress.database.models import Article
@@ -7,7 +9,7 @@ from yasinpress.publishing import Publisher, PublishResult
 
 
 class EitaaPublisher(Publisher):
-    """Publish text articles through the Eitaa Yar Bot API."""
+    """Publish attributed text articles through the Eitaa Yar Bot API."""
 
     def __init__(
         self,
@@ -32,8 +34,16 @@ class EitaaPublisher(Publisher):
     def name(self) -> str:
         return "eitaa"
 
+    @staticmethod
+    def _source_label(article: Article) -> str:
+        hostname = urlparse(article.url).hostname
+        if not hostname:
+            return "منبع"
+        return hostname.removeprefix("www.")
+
     def render(self, article: Article) -> str:
-        return f"{article.title}\n\n{article.content}\n\n{article.url}"
+        source = self._source_label(article)
+        return f"{article.title}\n\n{article.content}\n\nمنبع: {source}"
 
     def publish(self, article: Article) -> PublishResult:
         url = f"{self.api_base}/{self.token}/sendMessage"
