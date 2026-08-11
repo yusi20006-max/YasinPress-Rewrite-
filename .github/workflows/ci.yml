@@ -20,6 +20,8 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+      - name: Verify runtime
+        run: python -VV
       - name: Install project and development dependencies
         run: python -m pip install -e ".[dev]"
       - name: Compile source and tests
