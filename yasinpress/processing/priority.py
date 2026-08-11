@@ -15,8 +15,8 @@ _MEDIUM = ("مهم", "هشدار", "بحران", "تحریم", "انتخابات
 
 def calculate_priority(title: str, content: str = "") -> PriorityResult:
     text = f"{title} {content}".casefold()
-    high = sum(text.count(term.casefold()) for term in _HIGH)
-    medium = sum(text.count(term.casefold()) for term in _MEDIUM)
+    high = sum(term.casefold() in text for term in _HIGH)
+    medium = sum(term.casefold() in text for term in _MEDIUM)
     score = min(100, high * 30 + medium * 10)
     if score >= 60:
         level = "high"
