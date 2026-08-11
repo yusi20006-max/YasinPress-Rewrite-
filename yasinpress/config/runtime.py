@@ -13,6 +13,9 @@ class RuntimeConfig:
     request_timeout_seconds: float = 20.0
     feed_urls: tuple[str, ...] = ()
     feed_source: str = "rss"
+    eitaa_token: str = ""
+    eitaa_channel: str = ""
+    eitaa_api_base: str = "https://eitaayar.ir/api"
 
     @classmethod
     def from_env(cls) -> RuntimeConfig:
@@ -32,6 +35,9 @@ class RuntimeConfig:
             ),
             feed_urls=feeds,
             feed_source=os.getenv("YASINPRESS_FEED_SOURCE", cls.feed_source),
+            eitaa_token=os.getenv("YASINPRESS_EITAA_TOKEN", "").strip(),
+            eitaa_channel=os.getenv("YASINPRESS_EITAA_CHANNEL", "").strip(),
+            eitaa_api_base=os.getenv("YASINPRESS_EITAA_API_BASE", cls.eitaa_api_base).strip(),
         )
 
     def validate(self) -> None:
@@ -45,3 +51,9 @@ class RuntimeConfig:
             raise ValueError("request_timeout_seconds must be positive")
         if not self.feed_source:
             raise ValueError("feed_source must not be empty")
+        if bool(self.eitaa_token) != bool(self.eitaa_channel):
+            raise ValueError(
+                "YASINPRESS_EITAA_TOKEN and YASINPRESS_EITAA_CHANNEL must be set together"
+            )
+        if not self.eitaa_api_base:
+            raise ValueError("eitaa_api_base must not be empty")
