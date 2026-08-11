@@ -13,13 +13,18 @@ class RuntimeConfig:
     request_timeout_seconds: float = 20.0
     feed_urls: tuple[str, ...] = ()
     feed_source: str = "rss"
+    eitaa_bot_token: str = ""
+    eitaa_channel: str = "@yasinpress"
 
     @classmethod
     def from_env(cls) -> RuntimeConfig:
         raw_feeds = os.getenv("YASINPRESS_FEEDS", "")
         feeds = tuple(url.strip() for url in raw_feeds.split(",") if url.strip())
         return cls(
-            database_path=os.getenv("YASINPRESS_DATABASE", cls.database_path),
+            database_path=os.getenv(
+                "YASINPRESS_DATABASE",
+                os.getenv("YASINPRESS_DATABASE_PATH", cls.database_path),
+            ),
             worker_interval_seconds=float(
                 os.getenv("YASINPRESS_WORKER_INTERVAL", cls.worker_interval_seconds)
             ),
@@ -32,6 +37,14 @@ class RuntimeConfig:
             ),
             feed_urls=feeds,
             feed_source=os.getenv("YASINPRESS_FEED_SOURCE", cls.feed_source),
+            eitaa_bot_token=os.getenv(
+                "EITAA_BOT_TOKEN",
+                os.getenv("YASINPRESS_EITAA_BOT_TOKEN", ""),
+            ).strip(),
+            eitaa_channel=os.getenv(
+                "EITAA_CHANNEL",
+                os.getenv("YASINPRESS_EITAA_CHANNEL", cls.eitaa_channel),
+            ).strip(),
         )
 
     def validate(self) -> None:
@@ -45,3 +58,5 @@ class RuntimeConfig:
             raise ValueError("request_timeout_seconds must be positive")
         if not self.feed_source:
             raise ValueError("feed_source must not be empty")
+        if self.eitaa_bot_token and not self.eitaa_channel:
+            raise ValueError("eitaa_channel must not be empty when Eitaa publishing is enabled")
