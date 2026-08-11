@@ -14,6 +14,7 @@ class PublishResult:
     destination: str
     external_id: str | None = None
     error: str | None = None
+    skipped: bool = False
 
 
 class Publisher(Protocol):
