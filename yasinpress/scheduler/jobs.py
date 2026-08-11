@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Callable
 import uuid
 
 
@@ -27,7 +27,7 @@ class Job:
 
     def __post_init__(self) -> None:
         if self.created_at is None:
-            self.created_at = datetime.now(timezone.utc)
+            self.created_at = datetime.now(UTC)
 
 
 @dataclass
@@ -44,17 +44,17 @@ class JobExecution:
     def run(self, handler: Callable[[], object]) -> JobExecution:
         self.status = JobStatus.RUNNING
         self.attempts += 1
-        self.started_at = datetime.now(timezone.utc)
+        self.started_at = datetime.now(UTC)
         try:
             handler()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - execution boundary records task failures
             self.status = JobStatus.FAILED
             self.error = str(exc)
         else:
             self.status = JobStatus.SUCCEEDED
             self.error = None
         finally:
-            self.finished_at = datetime.now(timezone.utc)
+            self.finished_at = datetime.now(UTC)
         return self
 
 
@@ -66,18 +66,18 @@ class JobRunner:
 
     def run(self, job: Job) -> Job:
         job.status = JobStatus.RUNNING
-        job.started_at = datetime.now(timezone.utc)
+        job.started_at = datetime.now(UTC)
         job.attempts += 1
         try:
             self.handler()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - runner records arbitrary task failures
             job.status = JobStatus.FAILED
             job.error = str(exc)
         else:
             job.status = JobStatus.SUCCEEDED
             job.error = None
         finally:
-            job.finished_at = datetime.now(timezone.utc)
+            job.finished_at = datetime.now(UTC)
         return job
 
 
