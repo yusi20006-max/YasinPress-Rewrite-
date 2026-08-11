@@ -3,13 +3,16 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 
+DEFAULT_MAX_AGE = timedelta(hours=12)
+
+
 def is_fresh(
     published_at: datetime | None,
     *,
     now: datetime | None = None,
-    max_age: timedelta = timedelta(hours=24),
+    max_age: timedelta = DEFAULT_MAX_AGE,
 ) -> bool:
-    """Return True when an article timestamp is within the allowed age window."""
+    """Return True when an article is within the normal publication age window."""
     if published_at is None:
         return False
 
