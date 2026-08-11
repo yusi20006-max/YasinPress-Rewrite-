@@ -19,6 +19,7 @@ class Runtime:
         self._stop.set()
 
     def run(self) -> None:
+        print("YasinPress is active", flush=True)
         while not self._stop.is_set():
             self.tick()
             self._stop.wait(self.interval_seconds)
