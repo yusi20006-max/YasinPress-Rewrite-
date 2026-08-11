@@ -30,6 +30,8 @@ class YasinPressApplication:
         repository: SQLiteArticleRepository | None = None,
         repositories: SQLiteRepositories | None = None,
         retry_policy: RetryPolicy | None = None,
+        max_article_age_hours: float = 6.0,
+        max_publications_per_hour: int = 10,
     ) -> None:
         self.repositories = repositories
         if repository is not None:
@@ -45,6 +47,8 @@ class YasinPressApplication:
             history=repositories.delivery_history if repositories else None,
             idempotency=repositories.idempotency if repositories else None,
             retry_policy=retry_policy,
+            max_article_age_hours=max_article_age_hours,
+            max_publications_per_hour=max_publications_per_hour,
         )
 
     def process_items(self, items: Iterable[FeedItem]) -> ApplicationReport:
