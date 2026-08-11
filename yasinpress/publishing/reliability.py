@@ -34,7 +34,7 @@ class ReliablePublisher:
             self.attempts = attempt
             try:
                 result = self.publisher.publish(article)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - publisher boundary converts failures to results
                 result = PublishResult(False, self.publisher.name, external_id=article.id, error=str(exc))
             last = result
             if result.success:
