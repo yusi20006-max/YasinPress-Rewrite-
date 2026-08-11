@@ -36,12 +36,14 @@ class JobExecution:
 
     name: str
     status: JobStatus = JobStatus.PENDING
+    attempts: int = 0
     started_at: datetime | None = None
     finished_at: datetime | None = None
     error: str | None = None
 
     def run(self, handler: Callable[[], object]) -> JobExecution:
         self.status = JobStatus.RUNNING
+        self.attempts += 1
         self.started_at = datetime.now(timezone.utc)
         try:
             handler()
