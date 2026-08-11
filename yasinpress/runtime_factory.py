@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import timedelta
-from typing import Iterable
 
 from yasinpress.config.runtime import RuntimeConfig
 from yasinpress.database.sqlite import SQLiteRepositories
@@ -47,7 +47,7 @@ def build_runtime(*, config: RuntimeConfig | None = None, ai=None,
         database.close()
         raise RuntimeError(f"database readiness check failed: {health.message}")
 
-    recovery = recover_jobs(database.jobs, database.jobs.all())
+    recover_jobs(database.jobs, database.jobs.all())
     application = YasinPressApplication(
         source=cfg.feed_source, ai=ai, publishers=publishers,
         repositories=database,
