@@ -22,8 +22,11 @@ class FeedFetcher:
 
     def fetch_url(self, url: str) -> FeedFetchResult:
         payload = self.fetch(url, timeout=self.timeout)
-        items = tuple(parse_rss(payload))
-        source = urlparse(url).netloc or url
+        source = urlparse(url).hostname or url
+        items = tuple(
+            FeedItem(item.title, item.url, item.content, item.published_at, source)
+            for item in parse_rss(payload)
+        )
         return FeedFetchResult(url, source, items)
 
     def fetch_many(self, urls: tuple[str, ...]) -> tuple[FeedFetchResult, ...]:
