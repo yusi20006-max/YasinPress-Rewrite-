@@ -32,22 +32,35 @@ class ProcessingService:
             history=history, idempotency=idempotency,
         )
 
+    def _enrich(self, article: Article) -> Article:
+        if self.ai is None:
+            return article
+        if hasattr(self.ai, "enrich"):
+            result = self.ai.enrich(article)
+            if getattr(result, "success", False):
+                return Article(
+                    id=article.id, title=result.title, url=article.url,
+                    content=result.content, source=article.source,
+                    published_at=article.published_at, category=article.category,
+                )
+            return article
+        rewrite = getattr(self.ai, "rewrite", None)
+        if rewrite is not None:
+            content = rewrite(article.content)
+            return Article(
+                id=article.id, title=article.title, url=article.url,
+                content=content, source=article.source,
+                published_at=article.published_at, category=article.category,
+            )
+        return article
+
     def process(self, items: Iterable[FeedItem]) -> ProcessingReport:
         result = self.pipeline.process(unique_items(items))
-        articles: list[Article] = []
-        for article in result.articles:
-            if self.ai is None:
-                articles.append(article)
-                continue
-            enriched = self.ai.enrich(article)
-            if enriched.success:
-                articles.append(Article(id=article.id, title=enriched.title, url=article.url,
-                                        content=enriched.content, source=article.source,
-                                        published_at=article.published_at, category=article.category))
-            else:
-                articles.append(article)
-
+        articles = tuple(self._enrich(article) for article in result.articles)
         results: list[PublishResult] = []
         for article in articles:
             results.extend(self.publisher.publish(article).results)
-        return ProcessingReport(PipelineResult(len(articles), result.rejected, tuple(articles)), PublishReport(tuple(results)))
+        return ProcessingReport(
+            PipelineResult(len(articles), result.rejected, articles),
+            PublishReport(tuple(results)),
+        )
