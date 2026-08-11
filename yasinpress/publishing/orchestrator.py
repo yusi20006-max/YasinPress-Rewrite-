@@ -15,11 +15,15 @@ class PublishReport:
 
     @property
     def success_count(self) -> int:
-        return sum(result.success for result in self.results)
+        return sum(result.success and not result.skipped for result in self.results)
 
     @property
     def failure_count(self) -> int:
-        return sum(not result.success for result in self.results)
+        return sum(not result.success and not result.skipped for result in self.results)
+
+    @property
+    def skipped_count(self) -> int:
+        return sum(result.skipped for result in self.results)
 
 
 class PublishingOrchestrator:
@@ -45,7 +49,12 @@ class PublishingOrchestrator:
             key = f"{article.id}:{publisher.publisher.name}"
             if self.idempotency.seen(key):
                 results.append(
-                    PublishResult(True, publisher.publisher.name, external_id=article.id)
+                    PublishResult(
+                        True,
+                        publisher.publisher.name,
+                        external_id=article.id,
+                        skipped=True,
+                    )
                 )
                 continue
             result = publisher.publish(article)
