@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
 from yasinpress.config.runtime import RuntimeConfig
@@ -117,9 +117,12 @@ def build_runtime(
                 processing = getattr(report, "processing", None)
                 if processing is not None:
                     publications = processing.publications
+                    now = datetime.now(UTC).astimezone()
                     print(
-                        "Publishing report: "
+                        f"[{now:%Y-%m-%d %H:%M:%S %Z}] Publishing report: "
+                        f"{report.received_count} received, "
                         f"{publications.success_count} sent, "
+                        f"{publications.skipped_count} already sent, "
                         f"{publications.failure_count} failed, "
                         f"{processing.queued_count} queued, "
                         f"{processing.old_count} old (>6h)",
