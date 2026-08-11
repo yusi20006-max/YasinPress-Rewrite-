@@ -21,6 +21,19 @@ DEFAULT_RULES: dict[str, tuple[str, ...]] = {
 }
 
 
+CATEGORY_IDS: dict[str, str] = {
+    "فناوری": "technology",
+    "اقتصادی": "economy",
+    "سیاسی": "politics",
+    "ورزشی": "sports",
+    "فرهنگی": "culture",
+    "علمی": "science",
+    "بین‌الملل": "international",
+    "اجتماعی": "social",
+    "عمومی": "general",
+}
+
+
 class PersianClassifier:
     def __init__(self, rules: dict[str, tuple[str, ...]] | None = None) -> None:
         self.rules = rules or DEFAULT_RULES
@@ -35,3 +48,9 @@ class PersianClassifier:
                 best_category, best_hits = category, hits
         score = min(1.0, best_hits / 3) if best_hits else 0.0
         return Classification(best_category, score)
+
+
+def classify(title: str, content: str = "") -> str:
+    """Return the stable English category identifier used by Article."""
+    result = PersianClassifier().classify(title, content)
+    return CATEGORY_IDS[result.category]
