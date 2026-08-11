@@ -11,6 +11,37 @@ from yasinpress.runtime_factory import build_runtime
 from yasinpress.sources.catalog import RSSFeed, active_feeds, probe_feed
 
 
+def _startup_channel_setup() -> None:
+    """Configure an optional Eitaa channel before RSS discovery."""
+    if os.getenv("YASINPRESS_EITAA_TOKEN", "").strip() and os.getenv(
+        "YASINPRESS_EITAA_CHANNEL", ""
+    ).strip():
+        print(f"Eitaa channel active: {os.environ['YASINPRESS_EITAA_CHANNEL'].strip()}")
+        return
+
+    try:
+        answer = input("آیا کانالی برای اضافه کردن دارید؟ [y/N]: ").strip().lower()
+    except EOFError:
+        answer = ""
+
+    if answer not in {"y", "yes"}:
+        print("No Eitaa channel added. Continuing with RSS feeds.")
+        return
+
+    try:
+        token = input("Eitaa Token: ").strip()
+        channel = input("Eitaa Channel: ").strip()
+    except EOFError:
+        token = channel = ""
+
+    if token and channel:
+        os.environ["YASINPRESS_EITAA_TOKEN"] = token
+        os.environ["YASINPRESS_EITAA_CHANNEL"] = channel
+        print(f"Eitaa channel configured: {channel}")
+    else:
+        print("Eitaa channel configuration skipped: token and channel are both required.")
+
+
 def _startup_feed_setup() -> None:
     """Validate configured RSS feeds and discover live alternatives when needed."""
     configured = tuple(
@@ -19,7 +50,10 @@ def _startup_feed_setup() -> None:
     if configured:
         valid = tuple(
             feed
-            for feed in (probe_feed(RSSFeed(f"Configured RSS {i}", url)) for i, url in enumerate(configured, 1))
+            for feed in (
+                probe_feed(RSSFeed(f"Configured RSS {i}", url))
+                for i, url in enumerate(configured, 1)
+            )
             if feed is not None
         )
         if valid:
@@ -27,13 +61,9 @@ def _startup_feed_setup() -> None:
             for feed in valid:
                 print(f"  ✓ {feed.url}")
             os.environ["YASINPRESS_FEEDS"] = ",".join(feed.url for feed in valid)
+            print(f"Starting with {len(valid)} RSS feed(s).")
             return
         print("Configured RSS feeds are not responding. Discovering active feeds...")
-
-    try:
-        answer = input("آیا RSS جدیدی برای اضافه کردن دارید؟ [y/N]: ").strip().lower()
-    except EOFError:
-        answer = ""
 
     try:
         feeds = active_feeds()
@@ -49,23 +79,8 @@ def _startup_feed_setup() -> None:
     for index, feed in enumerate(feeds, 1):
         print(f"  {index}. {feed.name} — {feed.url}")
 
-    selected = list(feeds)
-    if answer in {"y", "yes"}:
-        try:
-            custom = input(
-                "RSS URL(s), comma-separated (Enter to keep the active list): "
-            ).strip()
-        except EOFError:
-            custom = ""
-        if custom:
-            selected.extend(
-                RSSFeed(f"Custom RSS {index}", url.strip())
-                for index, url in enumerate(custom.split(","), 1)
-                if url.strip()
-            )
-
-    os.environ["YASINPRESS_FEEDS"] = ",".join(feed.url for feed in selected)
-    print(f"Starting with {len(selected)} RSS feed(s).")
+    os.environ["YASINPRESS_FEEDS"] = ",".join(feed.url for feed in feeds)
+    print(f"Starting with {len(feeds)} RSS feed(s).")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -90,7 +105,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "run":
+        _startup_channel_setup()
         _startup_feed_setup()
+        print("YasinPress is active")
 
     bundle = build_runtime()
     try:
