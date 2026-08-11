@@ -21,6 +21,7 @@ class ProcessingReport:
     publications: PublishReport
     old_count: int = 0
     queued_count: int = 0
+    duplicate_count: int = 0
 
 
 class ProcessingService:
@@ -46,9 +47,9 @@ class ProcessingService:
             history=history,
             idempotency=idempotency,
         )
+        self.history = history
         self.max_age = timedelta(hours=max_article_age_hours)
         self.max_publications_per_hour = max_publications_per_hour
-        self._published_timestamps: list[datetime] = []
 
     def _enrich(self, article: Article) -> Article:
         if self.ai is None:
@@ -80,11 +81,26 @@ class ProcessingService:
             )
         return article
 
-    def _select_fair_batch(self, articles: tuple[Article, ...], now: datetime) -> tuple[Article, ...]:
-        cutoff = now - self.max_age
-        recent = [article for article in articles if article.published_at >= cutoff]
+    def _was_delivered(self, article: Article) -> bool:
+        for publisher in self.publisher.publishers:
+            key = f"{article.id}:{publisher.publisher.name}"
+            if self.publisher.idempotency.seen(key):
+                return True
+        return False
+
+    def _published_last_hour(self, now: datetime) -> int:
+        cutoff = now - timedelta(hours=1)
+        if self.history is not None:
+            return sum(
+                record.success
+                and record.created_at >= cutoff
+                for record in self.history.all()
+            )
+        return 0
+
+    def _select_fair_batch(self, articles: tuple[Article, ...]) -> tuple[Article, ...]:
         buckets: dict[str, list[Article]] = defaultdict(list)
-        for article in sorted(recent, key=lambda item: item.published_at, reverse=True):
+        for article in sorted(articles, key=lambda item: item.published_at, reverse=True):
             buckets[article.source].append(article)
 
         selected: list[Article] = []
@@ -107,23 +123,23 @@ class ProcessingService:
         old_count = sum(article.published_at < cutoff for article in articles)
         candidates = tuple(article for article in articles if article.published_at >= cutoff)
 
-        self._published_timestamps = [
-            timestamp for timestamp in self._published_timestamps if now - timestamp < timedelta(hours=1)
-        ]
-        available = max(0, self.max_publications_per_hour - len(self._published_timestamps))
-        selected = self._select_fair_batch(candidates, now)[:available]
-        queued_count = max(0, len(candidates) - len(selected))
+        undelivered = tuple(article for article in candidates if not self._was_delivered(article))
+        duplicate_count = len(candidates) - len(undelivered)
+
+        published_last_hour = self._published_last_hour(now)
+        available = max(0, self.max_publications_per_hour - published_last_hour)
+        selected = self._select_fair_batch(undelivered)[:available]
+        queued_count = max(0, len(undelivered) - len(selected))
 
         results: list[PublishResult] = []
         for article in selected:
             report = self.publisher.publish(article)
             results.extend(report.results)
-            if report.success_count:
-                self._published_timestamps.append(datetime.now(UTC))
 
         return ProcessingReport(
             PipelineResult(len(articles), result.rejected, articles),
             PublishReport(tuple(results)),
             old_count=old_count,
             queued_count=queued_count,
+            duplicate_count=duplicate_count,
         )
