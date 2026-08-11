@@ -8,7 +8,7 @@ from dataclasses import dataclass
 class RuntimeConfig:
     database_path: str = "yasinpress.db"
     worker_interval_seconds: float = 1.0
-    scheduler_interval_seconds: float = 30.0
+    scheduler_interval_seconds: float = 600.0
     max_job_attempts: int = 3
     request_timeout_seconds: float = 20.0
     feed_urls: tuple[str, ...] = ()
