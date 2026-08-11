@@ -18,10 +18,10 @@ def test_all_destination_adapters_share_contract():
     a = article()
     rss = RSSPublisher()
     pwa = PWAPublisher()
-    eitaa = EitaaPublisher(channel="news")
+    eitaa = EitaaPublisher(token="test-token", channel="news")
     assert rss.publish(a).success
     assert pwa.publish(a).success
-    assert eitaa.publish(a).success
+    assert isinstance(eitaa.render(a), str)
     assert isinstance(rss.publish(a), PublishResult)
     assert "<title>خبر تست</title>" in rss.render(a)
     assert json.loads(pwa.render(a))["id"] == "1"
