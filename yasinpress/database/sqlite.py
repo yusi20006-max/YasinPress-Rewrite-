@@ -15,13 +15,10 @@ class SQLiteArticleRepository:
         self._owns_connection = connection is None
         self.connection = connection or sqlite3.connect(path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
-        self.connection.execute(
-            """CREATE TABLE IF NOT EXISTS articles (
-                id TEXT PRIMARY KEY, title TEXT NOT NULL, url TEXT NOT NULL,
-                content TEXT NOT NULL, source TEXT NOT NULL,
-                published_at TEXT NOT NULL, category TEXT
-            )"""
-        )
+        self.connection.execute("""CREATE TABLE IF NOT EXISTS articles (
+            id TEXT PRIMARY KEY, title TEXT NOT NULL, url TEXT NOT NULL,
+            content TEXT NOT NULL, source TEXT NOT NULL,
+            published_at TEXT NOT NULL, category TEXT)""")
         self.connection.commit()
 
     def save(self, article: Article) -> None:
@@ -40,7 +37,9 @@ class SQLiteArticleRepository:
             self.save(article)
 
     def get(self, article_id: str) -> Article | None:
-        row = self.connection.execute("SELECT * FROM articles WHERE id=?", (article_id,)).fetchone()
+        row = self.connection.execute(
+            "SELECT * FROM articles WHERE id=? OR url=? LIMIT 1", (article_id, article_id)
+        ).fetchone()
         if row is None:
             return None
         return Article(row["id"], row["title"], row["url"], row["content"], row["source"], datetime.fromisoformat(row["published_at"]), row["category"])
@@ -59,34 +58,25 @@ class SQLiteDeliveryHistory:
 
     def __init__(self, connection: sqlite3.Connection) -> None:
         self.connection = connection
-        self.connection.execute(
-            """CREATE TABLE IF NOT EXISTS delivery_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                article_id TEXT NOT NULL,
-                destination TEXT NOT NULL,
-                success INTEGER NOT NULL,
-                attempts INTEGER NOT NULL,
-                external_id TEXT,
-                error TEXT,
-                created_at TEXT NOT NULL
-            )"""
-        )
+        self.connection.execute("""CREATE TABLE IF NOT EXISTS delivery_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, article_id TEXT NOT NULL,
+            destination TEXT NOT NULL, success INTEGER NOT NULL, attempts INTEGER NOT NULL,
+            external_id TEXT, error TEXT, created_at TEXT NOT NULL)""")
         self.connection.commit()
 
     def add(self, record: DeliveryRecord) -> None:
         self.connection.execute(
             "INSERT INTO delivery_history(article_id,destination,success,attempts,external_id,error,created_at) VALUES(?,?,?,?,?,?,?)",
-            (record.article_id, record.destination, int(record.success), record.attempts,
-             record.external_id, record.error, record.created_at.isoformat()),
+            (record.article_id, record.destination, int(record.success), record.attempts, record.external_id, record.error, record.created_at.isoformat()),
         )
         self.connection.commit()
 
     def all(self) -> tuple[DeliveryRecord, ...]:
-        rows = self.connection.execute("SELECT article_id,destination,success,attempts,external_id,error,created_at FROM delivery_history ORDER BY id").fetchall()
+        rows = self.connection.execute("SELECT article_id,destination,success,attempts,external_id,error,created_at FROM delivery_history ORDER BY rowid").fetchall()
         return tuple(self._record(row) for row in rows)
 
     def for_article(self, article_id: str) -> tuple[DeliveryRecord, ...]:
-        rows = self.connection.execute("SELECT article_id,destination,success,attempts,external_id,error,created_at FROM delivery_history WHERE article_id=? ORDER BY id", (article_id,)).fetchall()
+        rows = self.connection.execute("SELECT article_id,destination,success,attempts,external_id,error,created_at FROM delivery_history WHERE article_id=? ORDER BY rowid", (article_id,)).fetchall()
         return tuple(self._record(row) for row in rows)
 
     @staticmethod
@@ -116,7 +106,6 @@ class SQLiteRepositories:
     def __init__(self, path: str = ":memory:") -> None:
         from yasinpress.database.delivery import SQLiteDeliveryRepository
         from yasinpress.database.jobs import SQLiteJobRepository
-
         self.connection = sqlite3.connect(path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self.articles = SQLiteArticleRepository(connection=self.connection)
