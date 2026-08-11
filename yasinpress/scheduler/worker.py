@@ -1,7 +1,7 @@
 """Queue worker with lifecycle tracking, retries and persistent state."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from queue import Empty
 from typing import Callable
 
@@ -38,14 +38,14 @@ class Worker:
             lifecycle = LifecycleJob(id=queued.name, name=queued.name)
 
         lifecycle.status = JobStatus.RUNNING
-        lifecycle.started_at = datetime.now(timezone.utc)
+        lifecycle.started_at = datetime.now(UTC)
         self.store.save(lifecycle)
 
         for attempt in range(self.retry.attempts):
             lifecycle.attempts += 1
             try:
                 queued.task()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - worker boundary records and retries task failures
                 lifecycle.error = str(exc)
                 if attempt + 1 < self.retry.attempts:
                     import time
@@ -57,7 +57,7 @@ class Worker:
                 lifecycle.error = None
                 break
 
-        lifecycle.finished_at = datetime.now(timezone.utc)
+        lifecycle.finished_at = datetime.now(UTC)
         self.store.save(lifecycle)
         return lifecycle
 
