@@ -49,3 +49,7 @@ class Scheduler:
             created.append(execution)
             scheduled.next_run_at = current + scheduled.schedule.interval
         return tuple(created)
+
+    def clear(self) -> None:
+        self.tasks.clear()
+        self.executions.clear()
