@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import os
 
 from yasinpress.config.runtime import RuntimeConfig
@@ -12,12 +13,9 @@ from yasinpress.sources.catalog import RSSFeed, active_feeds, probe_feed
 
 
 def _startup_channel_setup() -> None:
-    """Configure an optional Eitaa channel before RSS discovery."""
-    if os.getenv("YASINPRESS_EITAA_TOKEN", "").strip() and os.getenv(
-        "YASINPRESS_EITAA_CHANNEL", ""
-    ).strip():
-        print(f"Eitaa channel active: {os.environ['YASINPRESS_EITAA_CHANNEL'].strip()}")
-        return
+    """Ask whether an Eitaa channel should be configured at startup."""
+    existing_token = os.getenv("YASINPRESS_EITAA_TOKEN", "").strip()
+    existing_channel = os.getenv("YASINPRESS_EITAA_CHANNEL", "").strip()
 
     try:
         answer = input("آیا کانالی برای اضافه کردن دارید؟ [y/N]: ").strip().lower()
@@ -25,19 +23,24 @@ def _startup_channel_setup() -> None:
         answer = ""
 
     if answer not in {"y", "yes"}:
-        print("No Eitaa channel added. Continuing with RSS feeds.")
+        if existing_token and existing_channel:
+            print(f"Eitaa channel active: {existing_channel}")
+        else:
+            print("No Eitaa channel added. Continuing with RSS feeds.")
         return
 
     try:
-        token = input("Eitaa Token: ").strip()
+        token = getpass.getpass("Eitaa Token: ").strip()
         channel = input("Eitaa Channel: ").strip()
-    except EOFError:
+    except (EOFError, KeyboardInterrupt):
         token = channel = ""
 
     if token and channel:
         os.environ["YASINPRESS_EITAA_TOKEN"] = token
         os.environ["YASINPRESS_EITAA_CHANNEL"] = channel
         print(f"Eitaa channel configured: {channel}")
+    elif existing_token and existing_channel:
+        print(f"Keeping existing Eitaa channel: {existing_channel}")
     else:
         print("Eitaa channel configuration skipped: token and channel are both required.")
 
