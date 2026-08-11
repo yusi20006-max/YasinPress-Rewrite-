@@ -40,10 +40,20 @@ class EitaaPublisher(Publisher):
         payload = {"chat_id": self.channel, "text": self.render(article)}
         try:
             response = httpx.post(url, data=payload, timeout=self.timeout)
-            response.raise_for_status()
-            data = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
+        except httpx.HTTPError as exc:
             return PublishResult(False, self.name, error=f"Eitaa request failed: {exc}")
+
+        if response.is_error:
+            return PublishResult(
+                False,
+                self.name,
+                error=f"Eitaa HTTP request failed with status {response.status_code}",
+            )
+
+        try:
+            data = response.json()
+        except ValueError as exc:
+            return PublishResult(False, self.name, error=f"Eitaa returned invalid JSON: {exc}")
 
         if not isinstance(data, dict) or data.get("ok") is not True:
             error = data.get("error") if isinstance(data, dict) else None
