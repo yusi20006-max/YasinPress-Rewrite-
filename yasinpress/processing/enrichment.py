@@ -57,14 +57,14 @@ class ArticleEnricher:
         modified = title != article.title or content != article.content
         metadata = dict(article.source_metadata or {}) if isinstance(article.source_metadata, dict) else {}
         metadata.update(result.metadata)
+        metadata["ai_provider"] = result.provider
+        metadata["ai_breaking"] = result.breaking
         if result.summary is not None:
             metadata["ai_summary"] = result.summary
         if result.category is not None:
             metadata["ai_category"] = result.category
         if result.priority is not None:
             metadata["ai_priority"] = result.priority
-        metadata["ai_breaking"] = result.breaking
-        metadata["ai_provider"] = result.provider
 
         enriched = Article(
             id=article.id,
