@@ -12,12 +12,16 @@ class FakeCompletions:
 
     def create(self, **kwargs):
         self.calls += 1
+
         class Message:
             content = "بازنویسی آزمایشی"
+
         class Choice:
             message = Message()
+
         class Response:
             choices = [Choice()]
+
         return Response()
 
 
@@ -38,13 +42,18 @@ def article() -> Article:
     )
 
 
-def test_enabled_factory_returns_resilient_provider_and_rewrites():
+def test_enabled_factory_returns_resilient_provider_and_rewrites(monkeypatch):
+    monkeypatch.setenv("TEST_AI_KEY", "test-key")
     client = FakeClient()
     provider = create_ai_provider(
-        AIConfig(enabled=True, base_url="https://example.com/v1", model="test", api_key_env="MISSING"),
+        AIConfig(
+            enabled=True,
+            base_url="https://example.com/v1",
+            model="test",
+            api_key_env="TEST_AI_KEY",
+        ),
         client=client,
     )
-    # Inject a usable key through the config's environment contract without relying on a real service.
     assert provider.name == "openai-compatible"
     result = provider.enrich(article())
     assert isinstance(result, AIResult)
