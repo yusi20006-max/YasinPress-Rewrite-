@@ -75,6 +75,14 @@ class SQLitePublicationQueueEngine:
         )
         self.db.commit()
 
+    def add_job(self, job: PublicationJob) -> None:
+        """Compatibility alias used by the application composition root."""
+        self.enqueue(job)
+
+    def exists(self, job_id: str) -> bool:
+        row = self.db.execute("SELECT 1 FROM publication_queue WHERE id=?", (job_id,)).fetchone()
+        return row is not None
+
     def enqueue_article(self, article: Article, destination: str, *, priority: int,
                         priority_level: str, max_attempts: int | None = None) -> PublicationJob:
         job = PublicationJob(
