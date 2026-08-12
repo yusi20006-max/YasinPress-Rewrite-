@@ -64,13 +64,11 @@ class SQLitePublicationQueueEngine:
                (id, article_id, destination, status, priority, priority_level, source,
                 attempts, max_attempts, last_error, lease_expires_at, next_attempt_at, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                job.id, job.article_id, job.destination, job.status, job.priority,
-                job.priority_level, job.source, job.attempts, job.max_attempts, job.last_error,
-                job.lease_expires_at.isoformat() if job.lease_expires_at else None,
-                job.next_attempt_at.isoformat() if job.next_attempt_at else None,
-                job.created_at.astimezone(UTC).isoformat(),
-            ),
+            (job.id, job.article_id, job.destination, job.status, job.priority,
+             job.priority_level, job.source, job.attempts, job.max_attempts, job.last_error,
+             job.lease_expires_at.isoformat() if job.lease_expires_at else None,
+             job.next_attempt_at.isoformat() if job.next_attempt_at else None,
+             job.created_at.astimezone(UTC).isoformat()),
         )
         self.db.commit()
 
@@ -78,29 +76,26 @@ class SQLitePublicationQueueEngine:
         self.enqueue(job)
 
     def exists(self, job_id: str) -> bool:
-        row = self.db.execute("SELECT 1 FROM publication_queue WHERE id=?", (job_id,)).fetchone()
-        return row is not None
+        return self.db.execute("SELECT 1 FROM publication_queue WHERE id=?", (job_id,)).fetchone() is not None
 
     def enqueue_article(self, article: Article, destination: str, *, priority: int,
                         priority_level: str, max_attempts: int | None = None) -> PublicationJob:
-        job = PublicationJob(
-            id=f"{article.id}:{destination}", article_id=article.id, destination=destination,
-            status="pending", priority=priority, priority_level=priority_level,
-            source=article.source, max_attempts=max_attempts or self.config.max_attempts,
-        )
+        job = PublicationJob(id=f"{article.id}:{destination}", article_id=article.id,
+                             destination=destination, status="pending", priority=priority,
+                             priority_level=priority_level, source=article.source,
+                             max_attempts=max_attempts or self.config.max_attempts)
         self.enqueue(job)
         return job
 
     def recover_expired_leases(self, now: datetime | None = None) -> int:
         current = _utc(now)
         cur = self.db.execute(
-            """UPDATE publication_queue
-               SET status=CASE WHEN attempts >= max_attempts THEN 'dead_letter' ELSE 'retrying' END,
-                   next_attempt_at=CASE WHEN attempts >= max_attempts THEN NULL ELSE ? END,
-                   lease_expires_at=NULL
+            """UPDATE publication_queue SET
+               status=CASE WHEN attempts >= max_attempts THEN 'dead_letter' ELSE 'retrying' END,
+               next_attempt_at=CASE WHEN attempts >= max_attempts THEN NULL ELSE ? END,
+               lease_expires_at=NULL
                WHERE status='processing' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?""",
-            (current.isoformat(), current.isoformat()),
-        )
+            (current.isoformat(), current.isoformat()))
         self.db.commit()
         return cur.rowcount
 
@@ -108,14 +103,12 @@ class SQLitePublicationQueueEngine:
         cutoff = (now - self.config.window).isoformat()
         return self.db.execute(
             "SELECT source, destination FROM publication_events WHERE published_at > ? ORDER BY published_at",
-            (cutoff,),
-        ).fetchall()
+            (cutoff,)).fetchall()
 
     def _reserved(self, now: datetime) -> list[sqlite3.Row]:
         return self.db.execute(
             "SELECT source FROM publication_queue WHERE status='processing' AND lease_expires_at > ?",
-            (now.isoformat(),),
-        ).fetchall()
+            (now.isoformat(),)).fetchall()
 
     def _fair_source_order(self, sources: Iterable[str]) -> list[str]:
         unique = sorted(set(sources))
@@ -133,49 +126,40 @@ class SQLitePublicationQueueEngine:
         current = _utc(now)
         self.db.execute("BEGIN IMMEDIATE")
         try:
-            # Recovery and capacity accounting happen under the same write lock as
-            # the claim. This prevents two workers from both observing spare capacity
-            # and collectively exceeding the global/per-source limits.
             self.db.execute(
-                """UPDATE publication_queue
-                   SET status=CASE WHEN attempts >= max_attempts THEN 'dead_letter' ELSE 'retrying' END,
-                       next_attempt_at=CASE WHEN attempts >= max_attempts THEN NULL ELSE ? END,
-                       lease_expires_at=NULL
+                """UPDATE publication_queue SET
+                   status=CASE WHEN attempts >= max_attempts THEN 'dead_letter' ELSE 'retrying' END,
+                   next_attempt_at=CASE WHEN attempts >= max_attempts THEN NULL ELSE ? END,
+                   lease_expires_at=NULL
                    WHERE status='processing' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?""",
-                (current.isoformat(), current.isoformat()),
-            )
+                (current.isoformat(), current.isoformat()))
             successes = self._recent_successes(current)
             reserved = self._reserved(current)
             if len(successes) + len(reserved) >= self.config.global_limit:
                 self.db.rollback()
                 return None
-
             source_successes: dict[str, int] = {}
             source_reserved: dict[str, int] = {}
             for row in successes:
                 source_successes[row["source"]] = source_successes.get(row["source"], 0) + 1
             for row in reserved:
                 source_reserved[row["source"]] = source_reserved.get(row["source"], 0) + 1
-
             rows = self.db.execute(
                 """SELECT * FROM publication_queue
                    WHERE status IN ('pending','retrying')
                      AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
                    ORDER BY priority DESC, created_at ASC, id ASC""",
-                (current.isoformat(),),
-            ).fetchall()
+                (current.isoformat(),)).fetchall()
             if not rows:
                 self.db.rollback()
                 return None
-
             top_priority = rows[0]["priority"]
             candidates = [r for r in rows if r["priority"] == top_priority]
             order = self._fair_source_order(r["source"] for r in candidates)
             by_source: dict[str, list[sqlite3.Row]] = {source: [] for source in order}
             for row in candidates:
                 by_source.setdefault(row["source"], []).append(row)
-
-            selected: sqlite3.Row | None = None
+            selected = None
             for source in order:
                 if source_successes.get(source, 0) + source_reserved.get(source, 0) >= self.config.source_limit:
                     continue
@@ -185,13 +169,10 @@ class SQLitePublicationQueueEngine:
             if selected is None:
                 self.db.rollback()
                 return None
-
             lease_until = current + self.config.lease
             changed = self.db.execute(
-                """UPDATE publication_queue SET status='processing', attempts=attempts+1,
-                   lease_expires_at=? WHERE id=? AND status IN ('pending','retrying')""",
-                (lease_until.isoformat(), selected["id"]),
-            ).rowcount
+                "UPDATE publication_queue SET status='processing', attempts=attempts+1, lease_expires_at=? WHERE id=? AND status IN ('pending','retrying')",
+                (lease_until.isoformat(), selected["id"])).rowcount
             if changed != 1:
                 self.db.rollback()
                 return None
@@ -215,10 +196,8 @@ class SQLitePublicationQueueEngine:
                 self.db.rollback()
                 raise ValueError("job is not processing")
             self.db.execute("UPDATE publication_queue SET status='succeeded', lease_expires_at=NULL WHERE id=?", (job_id,))
-            self.db.execute(
-                "INSERT INTO publication_events(job_id,source,destination,published_at) VALUES (?,?,?,?)",
-                (job_id, row["source"], row["destination"], current.isoformat()),
-            )
+            self.db.execute("INSERT INTO publication_events(job_id,source,destination,published_at) VALUES (?,?,?,?)",
+                             (job_id, row["source"], row["destination"], current.isoformat()))
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -235,10 +214,8 @@ class SQLitePublicationQueueEngine:
         else:
             delay = self.config.retry_base * (2 ** max(0, attempts - 1))
             status, next_at = "retrying", current + delay
-        self.db.execute(
-            "UPDATE publication_queue SET status=?, last_error=?, lease_expires_at=NULL, next_attempt_at=? WHERE id=?",
-            (status, error, next_at.isoformat() if next_at else None, job_id),
-        )
+        self.db.execute("UPDATE publication_queue SET status=?, last_error=?, lease_expires_at=NULL, next_attempt_at=? WHERE id=?",
+                         (status, error, next_at.isoformat() if next_at else None, job_id))
         self.db.commit()
         return self.get(job_id)  # type: ignore[return-value]
 
@@ -264,12 +241,10 @@ class SQLitePublicationQueueEngine:
             return None
         article = articles.get(job.article_id)
         if article is None:
-            self.mark_failure(job.id, "article not found", now=now)
-            return PublishResult(False, job.destination, error="article not found")
+            return self._fail_result(job, "article not found", now)
         publisher = publishers.get(job.destination)
         if publisher is None:
-            self.mark_failure(job.id, f"publisher unavailable: {job.destination}", now=now)
-            return PublishResult(False, job.destination, error="publisher unavailable")
+            return self._fail_result(job, "publisher unavailable", now)
         try:
             result = publisher.publish(article)
         except Exception as exc:
@@ -279,6 +254,10 @@ class SQLitePublicationQueueEngine:
         else:
             self.mark_failure(job.id, result.error or "publication failed", now=now)
         return result
+
+    def _fail_result(self, job: PublicationJob, error: str, now: datetime | None) -> PublishResult:
+        self.mark_failure(job.id, error, now=now)
+        return PublishResult(False, job.destination, error=error)
 
 
 def _utc(value: datetime | None) -> datetime:
@@ -293,7 +272,6 @@ def _row_to_job(row: sqlite3.Row) -> PublicationJob:
             return None
         parsed = datetime.fromisoformat(value)
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
-
     return PublicationJob(
         id=row["id"], article_id=row["article_id"], destination=row["destination"],
         status=row["status"], priority=row["priority"], priority_level=row["priority_level"],
