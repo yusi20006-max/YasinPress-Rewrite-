@@ -11,17 +11,36 @@ class SafeAIEnricher:
         self.provider = provider
 
     def enrich(self, article: Article) -> AIResult:
+        """Return a structured result while containing every provider failure."""
         if self.provider is None:
             return AIResult(
-                article.title,
-                article.content,
-                "none",
+                title=article.title,
+                content=article.content,
+                provider="none",
                 success=False,
                 error="AI provider unavailable",
             )
         try:
-            return self.provider.enrich(article)
+            result = self.provider.enrich(article)
+            if result.title is None:
+                result = AIResult(
+                    title=article.title,
+                    content=result.content or article.content,
+                    provider=result.provider or self.provider.name,
+                    success=result.success,
+                    error=result.error,
+                    summary=result.summary,
+                    category=result.category,
+                    priority=result.priority,
+                    breaking=result.breaking,
+                    metadata=result.metadata,
+                )
+            return result
         except Exception as exc:  # noqa: BLE001 - provider boundary is intentionally non-fatal
             return AIResult(
-                article.title, article.content, self.provider.name, success=False, error=str(exc)
+                title=article.title,
+                content=article.content,
+                provider=self.provider.name,
+                success=False,
+                error=str(exc),
             )
