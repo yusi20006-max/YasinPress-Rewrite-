@@ -4,10 +4,10 @@ from yasinpress.database.models import Article
 from yasinpress.publishing.eitaa import EitaaPublisher
 
 
-def article(*, ai_modified: bool = False) -> Article:
+def article(*, ai_modified: bool = False, title: str = "عنوان آزمایشی") -> Article:
     return Article(
         id="YSN-000001",
-        title="عنوان آزمایشی",
+        title=title,
         url="https://example.com/news/1",
         content="متن خبر",
         source="Example",
@@ -30,6 +30,26 @@ def test_source_is_clickable_html_link():
 def test_ai_marker_only_when_article_was_modified():
     assert "🤖" not in publisher().render(article(ai_modified=False))
     assert "🤖" in publisher().render(article(ai_modified=True))
+
+
+def test_breaking_marker_is_emitted_for_breaking_news():
+    rendered = publisher().render(
+        article(title="فوری: زلزله شدید در تهران")
+    )
+    assert "🚨" in rendered
+    assert "خبر فوری" in rendered
+
+
+def test_normal_article_has_no_breaking_marker():
+    rendered = publisher().render(article())
+    assert "🚨" not in rendered
+    assert "خبر فوری" not in rendered
+
+
+def test_raw_url_is_not_rendered_as_plain_text():
+    rendered = publisher().render(article())
+    assert "منبع: https://example.com/news/1" not in rendered
+    assert "منبع: <a href=\"https://example.com/news/1\">example.com</a>" in rendered
 
 
 def test_html_is_escaped():
