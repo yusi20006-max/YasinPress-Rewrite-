@@ -49,8 +49,31 @@ def test_pwa_publisher_persists_json_feed(tmp_path: Path):
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["version"] == "https://jsonfeed.org/version/1.1"
     assert payload["title"] == "YasinPress PWA"
+    assert payload["language"] == "fa"
     assert payload["feed_url"] == "https://example.test/feed.json"
     assert [item["id"] for item in payload["items"]] == ["2", "1"]
+    assert payload["items"][0]["author"]["name"] == "test"
+    assert payload["items"][0]["tags"] == ["technology"]
+
+
+def test_pwa_ai_modified_item_exposes_modified_date():
+    published = datetime(2026, 8, 10, 10, 0, tzinfo=UTC)
+    received = datetime(2026, 8, 10, 10, 5, tzinfo=UTC)
+    a = Article(
+        "ai-1",
+        "بازنویسی شده",
+        "https://example.com/ai-1",
+        "محتوا",
+        "BBC Persian",
+        published,
+        "news",
+        ai_modified=True,
+        received_at=received,
+    )
+    item = json.loads(PWAPublisher().render(a))
+    assert item["date_published"] == published.isoformat()
+    assert item["date_modified"] == received.isoformat()
+    assert item["author"]["name"] == "BBC Persian"
 
 
 def test_rss_publisher_persists_rss20_feed(tmp_path: Path):
@@ -69,6 +92,9 @@ def test_rss_publisher_persists_rss20_feed(tmp_path: Path):
     assert xml.startswith('<?xml version="1.0" encoding="UTF-8"?>')
     assert '<rss version="2.0">' in xml
     assert "<title>YasinPress RSS</title>" in xml
+    assert "<language>fa</language>" in xml
+    assert "<lastBuildDate>" in xml
+    assert "<source>test</source>" in xml
     assert "<title>دوم</title>" in xml
     assert "<title>اول</title>" in xml
 
