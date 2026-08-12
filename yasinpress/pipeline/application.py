@@ -7,7 +7,8 @@ from yasinpress.ai.base import AIProvider
 from yasinpress.database.models import Article
 from yasinpress.database.sqlite import SQLiteArticleRepository, SQLiteRepositories
 from yasinpress.pipeline.service import ProcessingReport, ProcessingService
-from yasinpress.publishing import Publisher
+from yasinpress.publishing import Publisher, PublishResult
+from yasinpress.publishing.queue import SQLitePublicationQueueEngine
 from yasinpress.publishing.reliability import RetryPolicy
 from yasinpress.sources.feed import FeedItem
 
@@ -20,7 +21,7 @@ class ApplicationReport:
 
 
 class YasinPressApplication:
-    """Composition root for feed → AI → persistence → publishing."""
+    """Composition root for feed → AI → persistence → queue → publishing."""
 
     def __init__(
         self,
@@ -35,6 +36,7 @@ class YasinPressApplication:
         max_publications_per_hour: int = 10,
     ) -> None:
         self.repositories = repositories
+        self.publishers = tuple(publishers)
         if repository is not None:
             self.repository = repository
         elif repositories is not None:
@@ -44,7 +46,7 @@ class YasinPressApplication:
         self.processing = ProcessingService(
             source=source,
             ai=ai,
-            publishers=publishers,
+            publishers=self.publishers,
             history=repositories.delivery_history if repositories else None,
             idempotency=repositories.idempotency if repositories else None,
             retry_policy=retry_policy,
@@ -62,6 +64,29 @@ class YasinPressApplication:
             len(report.pipeline.articles),
             received_count=len(materialized),
         )
+
+    def publish_once(self) -> PublishResult | None:
+        """Publish one durable queue job; never publishes from feed ingestion."""
+        if self.repositories is None or not self.publishers:
+            return None
+        engine = SQLitePublicationQueueEngine(self.repositories.connection)
+        publisher_map = {publisher.name: publisher for publisher in self.publishers}
+        return engine.run_once(publisher_map, self.repository)
+
+    def publish_pending(self, max_jobs: int = 10) -> tuple[PublishResult, ...]:
+        """Drain at most ``max_jobs`` queue slots through the durable worker path."""
+        results: list[PublishResult] = []
+        for _ in range(max(0, max_jobs)):
+            result = self.publish_once()
+            if result is None:
+                break
+            results.append(result)
+        return tuple(results)
+
+    def queue_metrics(self) -> dict[str, int]:
+        if self.repositories is None:
+            return {"queue_depth": 0, "published_last_hour": 0, "remaining_global_capacity": 0}
+        return SQLitePublicationQueueEngine(self.repositories.connection).metrics()
 
     def get_article(self, article_id: str) -> Article | None:
         return self.repository.get(article_id)
