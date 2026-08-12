@@ -3,14 +3,18 @@ from __future__ import annotations
 from email.utils import format_datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from xml.etree.ElementTree import Element, SubElement, tostring
+from xml.etree.ElementTree import Element, QName, SubElement, parse, register_namespace, tostring
 
 from yasinpress.database.models import Article
 from yasinpress.publishing import Publisher, PublishResult
 
 
+ATOM_NS = "http://www.w3.org/2005/Atom"
+register_namespace("atom", ATOM_NS)
+
+
 class RSSPublisher(Publisher):
-    """Publish articles to a persistent RSS 2.0 feed."""
+    """Publish articles to a persistent, standards-compatible RSS 2.0 feed."""
 
     def __init__(
         self,
@@ -54,11 +58,11 @@ class RSSPublisher(Publisher):
         SubElement(channel, "link").text = self.link or self.feed_url
         SubElement(channel, "description").text = self.description
         if self.feed_url:
-            SubElement(channel, "atom:link", {
-                "href": self.feed_url,
-                "rel": "self",
-                "type": "application/rss+xml",
-            })
+            SubElement(
+                channel,
+                QName(ATOM_NS, "link"),
+                {"href": self.feed_url, "rel": "self", "type": "application/rss+xml"},
+            )
         for item in items[: self.max_items]:
             channel.append(item)
         return rss
@@ -67,13 +71,11 @@ class RSSPublisher(Publisher):
         if self.output_path is None or not self.output_path.exists():
             return []
         try:
-            from xml.etree.ElementTree import parse
-
             root = parse(self.output_path).getroot()
             channel = root.find("channel")
             if channel is None:
                 return []
-            return [item for item in channel.findall("item")]
+            return list(channel.findall("item"))
         except (OSError, ValueError):
             return []
 
