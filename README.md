@@ -9,6 +9,7 @@ YasinPress Rewrite is a production-oriented Python 3.13+ news automation platfor
 - RSS fetching, source management, filtering, duplicate detection, validation, and formatting.
 - AI provider abstraction for summaries, categorization, tagging, and title optimization.
 - Independent PWA JSON Feed and RSS 2.0 publishing, with atomic file replacement and bounded feed history.
+- Static RTL PWA shell in `pwa/` with manifest, refreshable JSON Feed reader, and service-worker caching.
 - Optional Eitaa publishing; web publishing does not depend on Eitaa being configured.
 - Priority queue, retry policy, scheduler, cache, health checks, metrics, diagnostics, and statistics.
 - Configuration from defaults, JSON, YAML, and environment variables.
@@ -40,12 +41,15 @@ When `YASINPRESS_FEEDS` is configured, new articles are processed and published 
 
 - `data/pwa/feed.json` — JSON Feed 1.1 for the PWA/web layer.
 - `data/rss/feed.xml` — RSS 2.0 for standard feed readers.
+- `pwa/` — static installable RTL reader for the generated JSON Feed.
 
 Each destination has its own idempotency key. A successful PWA delivery does **not** mark the RSS destination as delivered, and vice versa. Therefore a temporary failure in one destination can be retried later without re-publishing the successful destination.
 
 The output paths, titles, feed URLs, maximum item count, scheduling, freshness, and publication limits are configurable through `.env` using the variables documented in `.env.example`, including `YASINPRESS_PWA_HOME_URL`, `YASINPRESS_PWA_FEED_URL`, `YASINPRESS_RSS_LINK`, and `YASINPRESS_RSS_FEED_URL`.
 
 Eitaa credentials are optional. If they are absent, PWA and RSS publishing continue normally.
+
+See `docs/pwa-rss.md` for deployment details.
 
 ## Verification
 
@@ -59,6 +63,7 @@ The test suite covers destination contracts, persistent PWA/RSS feeds, replaceme
 
 ```text
 yasinpress/        Application package
+pwa/               Static RTL PWA reader
 docs/              Architecture, API, and developer documentation
 tests/             Unit and integration tests
 migrations/        SQL migrations
