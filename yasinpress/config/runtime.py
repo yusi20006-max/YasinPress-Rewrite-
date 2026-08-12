@@ -13,6 +13,7 @@ class RuntimeConfig:
     request_timeout_seconds: float = 20.0
     feed_urls: tuple[str, ...] = ()
     feed_source: str = "rss"
+    language: str = "fa"
     eitaa_token: str = ""
     eitaa_channel: str = ""
     eitaa_api_base: str = "https://eitaayar.ir/api"
@@ -46,6 +47,7 @@ class RuntimeConfig:
             ),
             feed_urls=feeds,
             feed_source=os.getenv("YASINPRESS_FEED_SOURCE", cls.feed_source),
+            language=os.getenv("YASINPRESS_LANGUAGE", cls.language).strip() or cls.language,
             eitaa_token=os.getenv("YASINPRESS_EITAA_TOKEN", "").strip(),
             eitaa_channel=os.getenv("YASINPRESS_EITAA_CHANNEL", "").strip(),
             eitaa_api_base=os.getenv("YASINPRESS_EITAA_API_BASE", cls.eitaa_api_base).strip(),
@@ -79,6 +81,8 @@ class RuntimeConfig:
             raise ValueError("max_feed_items must be >= 1")
         if not self.feed_source:
             raise ValueError("feed_source must not be empty")
+        if not self.language:
+            raise ValueError("language must not be empty")
         if not self.pwa_output_path or not self.rss_output_path:
             raise ValueError("PWA and RSS output paths must not be empty")
         if bool(self.eitaa_token) != bool(self.eitaa_channel):
