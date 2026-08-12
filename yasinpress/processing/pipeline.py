@@ -35,18 +35,33 @@ class ArticlePipeline:
         self,
         repository: ArticleRepository,
         *,
-        max_age: timedelta = timedelta(hours=24),
+        max_age: timedelta = timedelta(hours=12),
+        breaking_max_age: timedelta = timedelta(hours=24),
+        allow_breaking_exemption: bool = True,
         ai: SafeAIEnricher | None = None,
     ) -> None:
         self.repository = repository
         self.max_age = max_age
+        self.breaking_max_age = breaking_max_age
+        self.allow_breaking_exemption = allow_breaking_exemption
         self.duplicates = DuplicateDetector(repository)
         self.enricher = ArticleEnricher(ai)
 
     def process(self, item: FeedItem, *, source: str) -> ProcessedArticle | None:
         article = normalize(item, source)
-        if not is_fresh(article.published_at, max_age=self.max_age):
+
+        # Detect breaking before freshness check to allow exemption
+        breaking = detect_breaking(article.title, article.content)
+
+        if not is_fresh(
+            article.published_at,
+            max_age=self.max_age,
+            is_breaking=breaking.is_breaking,
+            breaking_max_age=self.breaking_max_age,
+            allow_breaking_exemption=self.allow_breaking_exemption,
+        ):
             return None
+
         if self.duplicates.is_duplicate(article):
             return None
 
@@ -58,10 +73,12 @@ class ArticlePipeline:
             source=article.source,
             published_at=article.published_at,
             category=classify(article.title, article.content),
+            event_id=article.event_id,
+            received_at=article.received_at,
+            lifecycle_state="processed",
         )
         validate_article(article)
         priority = calculate_priority(article.title, article.content)
-        breaking = detect_breaking(article.title, article.content)
 
         enrichment = self.enricher.enrich(article)
         article = enrichment.article

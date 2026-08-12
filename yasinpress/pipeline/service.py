@@ -36,7 +36,9 @@ class ProcessingService:
         history=None,
         idempotency=None,
         retry_policy: RetryPolicy | None = None,
-        max_article_age_hours: float = 6.0,
+        max_article_age_hours: float = 12.0,
+        breaking_max_article_age_hours: float = 24.0,
+        allow_breaking_exemption: bool = True,
         max_publications_per_hour: int = 10,
     ) -> None:
         self.ai = ai
@@ -49,6 +51,8 @@ class ProcessingService:
         )
         self.history = history
         self.max_age = timedelta(hours=max_article_age_hours)
+        self.breaking_max_age = timedelta(hours=breaking_max_article_age_hours)
+        self.allow_breaking_exemption = allow_breaking_exemption
         self.max_publications_per_hour = max_publications_per_hour
 
     def _enrich(self, article: Article) -> Article:
@@ -57,6 +61,9 @@ class ProcessingService:
         if hasattr(self.ai, "enrich"):
             result = self.ai.enrich(article)
             if getattr(result, "success", False):
+                ai_state = "rewritten"
+                if result.title == article.title and result.content == article.content:
+                    ai_state = "fallback"
                 return Article(
                     id=article.id,
                     title=result.title,
@@ -65,8 +72,29 @@ class ProcessingService:
                     source=article.source,
                     published_at=article.published_at,
                     category=article.category,
+                    event_id=article.event_id,
+                    received_at=article.received_at,
+                    lifecycle_state=article.lifecycle_state,
+                    ai_state=ai_state,
+                    ai_error=None,
+                    source_metadata=article.source_metadata,
                 )
-            return article
+            else:
+                return Article(
+                    id=article.id,
+                    title=article.title,
+                    url=article.url,
+                    content=article.content,
+                    source=article.source,
+                    published_at=article.published_at,
+                    category=article.category,
+                    event_id=article.event_id,
+                    received_at=article.received_at,
+                    lifecycle_state=article.lifecycle_state,
+                    ai_state="failed",
+                    ai_error=getattr(result, "error", "AI failed"),
+                    source_metadata=article.source_metadata,
+                )
         rewrite = getattr(self.ai, "rewrite", None)
         if rewrite is not None:
             content = rewrite(article.content)
@@ -78,6 +106,12 @@ class ProcessingService:
                 source=article.source,
                 published_at=article.published_at,
                 category=article.category,
+                event_id=article.event_id,
+                received_at=article.received_at,
+                lifecycle_state=article.lifecycle_state,
+                ai_state="rewritten",
+                ai_error=None,
+                source_metadata=article.source_metadata,
             )
         return article
 
@@ -119,9 +153,29 @@ class ProcessingService:
         result = self.pipeline.process(unique_items(items))
         articles = tuple(self._enrich(article) for article in result.articles)
         now = datetime.now(UTC)
-        cutoff = now - self.max_age
-        old_count = sum(article.published_at < cutoff for article in articles)
-        candidates = tuple(article for article in articles if article.published_at >= cutoff)
+
+        candidates = []
+        old_count = 0
+        from yasinpress.processing.breaking import detect_breaking
+        for article in articles:
+            breaking_res = detect_breaking(article.title, article.content)
+
+            # Decide max age limit
+            limit = self.max_age
+            if breaking_res.is_breaking and getattr(self, "allow_breaking_exemption", True):
+                limit = getattr(self, "breaking_max_age", timedelta(hours=24))
+
+            cutoff = now - limit
+            pub = article.published_at
+            if pub.tzinfo is None:
+                pub = pub.replace(tzinfo=UTC)
+
+            if pub < cutoff:
+                old_count += 1
+            else:
+                candidates.append(article)
+
+        candidates = tuple(candidates)
 
         undelivered = tuple(article for article in candidates if not self._was_delivered(article))
         duplicate_count = len(candidates) - len(undelivered)

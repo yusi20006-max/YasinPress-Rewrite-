@@ -82,8 +82,22 @@ def _startup_feed_setup() -> None:
     for index, feed in enumerate(feeds, 1):
         print(f"  {index}. {feed.name} — {feed.url}")
 
-    os.environ["YASINPRESS_FEEDS"] = ",".join(feed.url for feed in feeds)
-    print(f"Starting with {len(feeds)} RSS feed(s).")
+    try:
+        answer = input("آیا فید سفارشی برای اضافه کردن دارید؟ [y/N]: ").strip().lower()
+    except EOFError:
+        answer = ""
+
+    feed_urls = list(feed.url for feed in feeds)
+    if answer in {"y", "yes"}:
+        try:
+            custom_url = input("آدرس فید سفارشی: ").strip()
+            if custom_url:
+                feed_urls.append(custom_url)
+        except EOFError:
+            pass
+
+    os.environ["YASINPRESS_FEEDS"] = ",".join(feed_urls)
+    print(f"Starting with {len(feed_urls)} RSS feed(s).")
 
 
 def main(argv: list[str] | None = None) -> int:
