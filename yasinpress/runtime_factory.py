@@ -129,26 +129,31 @@ def build_runtime(
     def tick() -> None:
         scheduler.run_due()
         job = worker.run_once()
-        if job is not None and job.state.value == "succeeded":
-            report = getattr(job, "result", None)
-            if report is not None:
-                processing = getattr(report, "processing", None)
-                if processing is not None:
-                    publications = processing.publications
-                    now = datetime.now(UTC).astimezone()
-                    sent = publications.success_count
-                    already = processing.duplicate_count + publications.skipped_count
-                    print(
-                        f"[{now:%Y-%m-%d %H:%M:%S %Z}] Publishing report: "
-                        f"{report.received_count} received, "
-                        f"{sent} sent, "
-                        f"{already} already sent, "
-                        f"{publications.failure_count} failed, "
-                        f"{processing.queued_count} queued, "
-                        f"{processing.old_count} old (>6h), "
-                        f"hourly limit={cfg.max_publications_per_hour}",
-                        flush=True,
-                    )
+        if job is None or job.status.value != "succeeded":
+            return
+
+        report = getattr(job, "result", None)
+        if report is None:
+            return
+        processing = getattr(report, "processing", None)
+        if processing is None:
+            return
+
+        publications = processing.publications
+        now = datetime.now(UTC).astimezone()
+        sent = publications.success_count
+        already = processing.duplicate_count + publications.skipped_count
+        print(
+            f"[{now:%Y-%m-%d %H:%M:%S %Z}] Publishing report: "
+            f"{report.received_count} received, "
+            f"{sent} sent, "
+            f"{already} already sent, "
+            f"{publications.failure_count} failed, "
+            f"{processing.queued_count} queued, "
+            f"{processing.old_count} old (>{cfg.max_article_age_hours:g}h), "
+            f"hourly limit={cfg.max_publications_per_hour}",
+            flush=True,
+        )
 
     runtime = Runtime(tick, interval_seconds=cfg.worker_interval_seconds)
     return RuntimeBundle(
