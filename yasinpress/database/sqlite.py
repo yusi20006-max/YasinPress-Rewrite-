@@ -4,7 +4,7 @@ import sqlite3
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
-from yasinpress.database.models import Article
+from yasinpress.database.models import Article, PublicationJob
 from yasinpress.publishing.history import DeliveryRecord
 
 
@@ -141,18 +141,38 @@ class SQLiteDeliveryHistory:
         self.connection.commit()
 
     def add(self, record: DeliveryRecord) -> None:
-        self.connection.execute(
-            "INSERT INTO delivery_history(article_id,destination,success,attempts,external_id,error,created_at) VALUES(?,?,?,?,?,?,?)",
-            (
-                record.article_id,
-                record.destination,
-                int(record.success),
-                record.attempts,
-                record.external_id,
-                record.error,
-                record.created_at.isoformat(),
-            ),
-        )
+        try:
+            self.connection.execute(
+                """INSERT INTO delivery_history(article_id,destination,success,attempts,external_id,error,created_at)
+                   VALUES(?,?,?,?,?,?,?)
+                   ON CONFLICT(article_id,destination) DO UPDATE SET
+                     success=excluded.success, attempts=excluded.attempts,
+                     external_id=excluded.external_id, error=excluded.error,
+                     created_at=excluded.created_at""",
+                (
+                    record.article_id,
+                    record.destination,
+                    int(record.success),
+                    record.attempts,
+                    record.external_id,
+                    record.error,
+                    record.created_at.isoformat(),
+                ),
+            )
+        except sqlite3.OperationalError:
+            self.connection.execute(
+                """INSERT OR REPLACE INTO delivery_history(article_id,destination,success,attempts,external_id,error,created_at)
+                   VALUES(?,?,?,?,?,?,?)""",
+                (
+                    record.article_id,
+                    record.destination,
+                    int(record.success),
+                    record.attempts,
+                    record.external_id,
+                    record.error,
+                    record.created_at.isoformat(),
+                ),
+            )
         self.connection.commit()
 
     def all(self) -> tuple[DeliveryRecord, ...]:
@@ -196,6 +216,158 @@ class SQLiteIdempotencyStore:
         self.connection.commit()
 
 
+class SQLitePublicationQueue:
+    """SQLite repository for publication queue jobs."""
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+        self.connection.row_factory = sqlite3.Row
+        self.connection.execute(
+            """CREATE TABLE IF NOT EXISTS publication_queue (
+                id TEXT PRIMARY KEY,
+                article_id TEXT NOT NULL,
+                destination TEXT NOT NULL,
+                status TEXT NOT NULL,
+                priority INTEGER NOT NULL,
+                priority_level TEXT NOT NULL,
+                source TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                max_attempts INTEGER NOT NULL DEFAULT 3,
+                last_error TEXT,
+                lease_expires_at TEXT,
+                next_attempt_at TEXT,
+                created_at TEXT NOT NULL
+            )"""
+        )
+        self.connection.commit()
+
+    def add_job(self, job: PublicationJob) -> None:
+        self.connection.execute(
+            """INSERT INTO publication_queue (
+                id, article_id, destination, status, priority, priority_level, source,
+                attempts, max_attempts, last_error, lease_expires_at, next_attempt_at, created_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                 status=excluded.status,
+                 attempts=excluded.attempts,
+                 last_error=excluded.last_error,
+                 lease_expires_at=excluded.lease_expires_at,
+                 next_attempt_at=excluded.next_attempt_at""",
+            (
+                job.id,
+                job.article_id,
+                job.destination,
+                job.status,
+                job.priority,
+                job.priority_level,
+                job.source,
+                job.attempts,
+                job.max_attempts,
+                job.last_error,
+                job.lease_expires_at.isoformat() if job.lease_expires_at else None,
+                job.next_attempt_at.isoformat() if job.next_attempt_at else None,
+                job.created_at.isoformat() if job.created_at else datetime.now(UTC).isoformat(),
+            ),
+        )
+        self.connection.commit()
+
+    def save_job(self, job: PublicationJob) -> None:
+        self.add_job(job)
+
+    def exists(self, job_id: str) -> bool:
+        row = self.connection.execute(
+            "SELECT 1 FROM publication_queue WHERE id = ?", (job_id,)
+        ).fetchone()
+        return row is not None
+
+    def get_job(self, job_id: str) -> PublicationJob | None:
+        row = self.connection.execute(
+            "SELECT * FROM publication_queue WHERE id = ?", (job_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return self._to_job(row)
+
+    def get_all_jobs(self) -> tuple[PublicationJob, ...]:
+        rows = self.connection.execute(
+            "SELECT * FROM publication_queue ORDER BY created_at"
+        ).fetchall()
+        return tuple(self._to_job(row) for row in rows)
+
+    def get_eligible_jobs(self, now: datetime) -> tuple[PublicationJob, ...]:
+        now_str = now.isoformat()
+        rows = self.connection.execute(
+            """SELECT * FROM publication_queue
+               WHERE status IN ('pending', 'retrying')
+                 AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+                 AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
+               ORDER BY priority DESC, created_at ASC""",
+            (now_str, now_str),
+        ).fetchall()
+        return tuple(self._to_job(row) for row in rows)
+
+    def get_stale_leased_jobs(self, now: datetime) -> tuple[PublicationJob, ...]:
+        now_str = now.isoformat()
+        rows = self.connection.execute(
+            """SELECT * FROM publication_queue
+               WHERE status = 'processing'
+                 AND lease_expires_at IS NOT NULL
+                 AND lease_expires_at <= ?""",
+            (now_str,),
+        ).fetchall()
+        return tuple(self._to_job(row) for row in rows)
+
+    def get_metrics(self) -> dict[str, int]:
+        rows = self.connection.execute(
+            "SELECT status, COUNT(*) FROM publication_queue GROUP BY status"
+        ).fetchall()
+        counts = {row[0]: row[1] for row in rows}
+
+        pending = counts.get("pending", 0)
+        processing = counts.get("processing", 0)
+        retrying = counts.get("retrying", 0)
+        dead_letter = counts.get("dead_letter", 0)
+        failed = counts.get("failed", 0)
+        succeeded = counts.get("succeeded", 0)
+
+        queue_depth = pending + retrying + processing
+
+        return {
+            "queue_depth": queue_depth,
+            "pending": pending,
+            "processing": processing,
+            "retrying": retrying,
+            "dead_letter": dead_letter,
+            "failed": failed + dead_letter,
+            "published": succeeded,
+        }
+
+    def _to_job(self, row) -> PublicationJob:
+        def parse_iso(val: str | None) -> datetime | None:
+            if not val:
+                return None
+            dt = datetime.fromisoformat(val)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            return dt
+
+        return PublicationJob(
+            id=row["id"],
+            article_id=row["article_id"],
+            destination=row["destination"],
+            status=row["status"],
+            priority=row["priority"],
+            priority_level=row["priority_level"],
+            source=row["source"],
+            attempts=row["attempts"],
+            max_attempts=row["max_attempts"],
+            last_error=row["last_error"],
+            lease_expires_at=parse_iso(row["lease_expires_at"]),
+            next_attempt_at=parse_iso(row["next_attempt_at"]),
+            created_at=parse_iso(row["created_at"]) or datetime.now(UTC),
+        )
+
+
 class SQLiteRepositories:
     """Composition point sharing one SQLite connection across all durable state."""
 
@@ -210,6 +382,7 @@ class SQLiteRepositories:
         self.deliveries = SQLiteDeliveryRepository(self.connection)
         self.delivery_history = SQLiteDeliveryHistory(self.connection)
         self.idempotency = SQLiteIdempotencyStore(self.connection)
+        self.publication_queue = SQLitePublicationQueue(self.connection)
 
     def close(self) -> None:
         self.connection.close()

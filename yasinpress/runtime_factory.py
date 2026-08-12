@@ -112,6 +112,13 @@ def build_runtime(
     )
     worker = Worker(retry=JobRetryPolicy(attempts=cfg.max_job_attempts), store=database.jobs)
 
+    from yasinpress.publishing.queue_processor import PublicationQueueProcessor
+    queue_processor = PublicationQueueProcessor(
+        repositories=database,
+        publishers=configured,
+        max_global_per_hour=cfg.max_publications_per_hour,
+    )
+
     def on_feed_received(source: str, count: int) -> None:
         print(f"{count} news received from {_feed_label(source)}", flush=True)
 
@@ -131,6 +138,13 @@ def build_runtime(
     def tick() -> None:
         scheduler.run_due()
         job = worker.run_once()
+
+        # Run persistent publication queue processing cycle
+        published_results = queue_processor.process_cycle()
+        if published_results:
+            success_count = sum(r.success for r in published_results)
+            print(f"Persistent Queue Dispatch: processed {len(published_results)} jobs, {success_count} succeeded", flush=True)
+
         if job is None or job.status.value != "succeeded":
             return
 

@@ -50,6 +50,7 @@ class YasinPressApplication:
             retry_policy=retry_policy,
             max_article_age_hours=max_article_age_hours,
             max_publications_per_hour=max_publications_per_hour,
+            publication_queue=repositories.publication_queue if repositories else None,
         )
 
     def process_items(self, items: Iterable[FeedItem]) -> ApplicationReport:
