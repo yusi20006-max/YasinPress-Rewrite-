@@ -79,22 +79,21 @@ class ProcessingService:
                     ai_error=None,
                     source_metadata=article.source_metadata,
                 )
-            else:
-                return Article(
-                    id=article.id,
-                    title=article.title,
-                    url=article.url,
-                    content=article.content,
-                    source=article.source,
-                    published_at=article.published_at,
-                    category=article.category,
-                    event_id=article.event_id,
-                    received_at=article.received_at,
-                    lifecycle_state=article.lifecycle_state,
-                    ai_state="failed",
-                    ai_error=getattr(result, "error", "AI failed"),
-                    source_metadata=article.source_metadata,
-                )
+            return Article(
+                id=article.id,
+                title=article.title,
+                url=article.url,
+                content=article.content,
+                source=article.source,
+                published_at=article.published_at,
+                category=article.category,
+                event_id=article.event_id,
+                received_at=article.received_at,
+                lifecycle_state=article.lifecycle_state,
+                ai_state="failed",
+                ai_error=getattr(result, "error", "AI failed"),
+                source_metadata=article.source_metadata,
+            )
         rewrite = getattr(self.ai, "rewrite", None)
         if rewrite is not None:
             content = rewrite(article.content)
@@ -115,12 +114,12 @@ class ProcessingService:
             )
         return article
 
-    def _was_delivered(self, article: Article) -> bool:
-        for publisher in self.publisher.publishers:
-            key = f"{article.id}:{publisher.publisher.name}"
-            if self.publisher.idempotency.seen(key):
-                return True
-        return False
+    def _fully_delivered(self, article: Article) -> bool:
+        """Return true only when every configured destination already has this article."""
+        return bool(self.publisher.publishers) and all(
+            self.publisher.idempotency.seen(f"{article.id}:{publisher.publisher.name}")
+            for publisher in self.publisher.publishers
+        )
 
     def _published_last_hour(self, now: datetime) -> int:
         cutoff = now - timedelta(hours=1)
@@ -159,11 +158,9 @@ class ProcessingService:
         from yasinpress.processing.breaking import detect_breaking
         for article in articles:
             breaking_res = detect_breaking(article.title, article.content)
-
-            # Decide max age limit
             limit = self.max_age
-            if breaking_res.is_breaking and getattr(self, "allow_breaking_exemption", True):
-                limit = getattr(self, "breaking_max_age", timedelta(hours=24))
+            if breaking_res.is_breaking and self.allow_breaking_exemption:
+                limit = self.breaking_max_age
 
             cutoff = now - limit
             pub = article.published_at
@@ -176,8 +173,7 @@ class ProcessingService:
                 candidates.append(article)
 
         candidates = tuple(candidates)
-
-        undelivered = tuple(article for article in candidates if not self._was_delivered(article))
+        undelivered = tuple(article for article in candidates if not self._fully_delivered(article))
         duplicate_count = len(candidates) - len(undelivered)
 
         published_last_hour = self._published_last_hour(now)
