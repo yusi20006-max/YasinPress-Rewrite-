@@ -1,7 +1,7 @@
 """Persistence models."""
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 
 @dataclass(frozen=True)

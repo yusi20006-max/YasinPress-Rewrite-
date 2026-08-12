@@ -40,6 +40,8 @@ class ArticlePipeline:
     ) -> None:
         self.repository = repository
         self.max_age = max_age
+        self.breaking_max_age = breaking_max_age
+        self.allow_breaking_exemption = allow_breaking_exemption
         self.duplicates = DuplicateDetector(repository)
         self.enricher = ArticleEnricher(ai)
 
@@ -49,6 +51,7 @@ class ArticlePipeline:
         # Breaking/urgent stories can bypass the normal freshness gate.
         if not breaking.is_breaking and not is_fresh(article.published_at, max_age=self.max_age):
             return None
+
         if self.duplicates.is_duplicate(article):
             return None
 
@@ -60,10 +63,12 @@ class ArticlePipeline:
             source=article.source,
             published_at=article.published_at,
             category=classify(article.title, article.content),
+            event_id=article.event_id,
+            received_at=article.received_at,
+            lifecycle_state="processed",
         )
         validate_article(article)
         priority = calculate_priority(article.title, article.content)
-        breaking = detect_breaking(article.title, article.content)
 
         enrichment = self.enricher.enrich(article)
         article = enrichment.article

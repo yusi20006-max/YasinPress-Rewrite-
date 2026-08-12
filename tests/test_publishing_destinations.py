@@ -25,4 +25,4 @@ def test_all_destination_adapters_share_contract():
     assert isinstance(rss.publish(a), PublishResult)
     assert "<title>خبر تست</title>" in rss.render(a)
     assert json.loads(pwa.render(a))["id"] == "1"
-    assert "https://example.com/1" in eitaa.render(a)
+    assert "منبع: example.com" in eitaa.render(a)

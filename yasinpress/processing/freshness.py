@@ -21,4 +21,9 @@ def is_fresh(
 
     if published_at > current:
         return True
-    return current - published_at <= max_age
+
+    effective_max_age = max_age
+    if is_breaking and allow_breaking_exemption:
+        effective_max_age = breaking_max_age
+
+    return current - published_at <= effective_max_age

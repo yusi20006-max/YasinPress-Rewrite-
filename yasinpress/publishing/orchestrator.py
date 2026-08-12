@@ -15,7 +15,7 @@ class PublishReport:
 
     @property
     def success_count(self) -> int:
-        return sum(result.success and not result.skipped for result in self.results)
+        return sum(result.success for result in self.results)
 
     @property
     def failure_count(self) -> int:
