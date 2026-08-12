@@ -1,21 +1,44 @@
-"""Minimal REST-style router."""
+"""Minimal but method-aware transport-neutral API router."""
 
 from collections.abc import Callable
+from dataclasses import dataclass
+from inspect import signature
 
-from .responses import Response
+from .auth import TokenAuth
+from .request import Request
+from .responses import Response, method_not_allowed, not_found, unauthorized
 
+Handler = Callable[[Request], Response]
+LegacyHandler = Callable[[], Response]
+
+@dataclass(frozen=True)
+class Route:
+    method: str
+    handler: Handler
+    protected: bool = False
 
 class ApiApp:
-    """Routes paths to handlers."""
+    def __init__(self, auth: TokenAuth | None = None) -> None:
+        self.routes: dict[tuple[str, str], Route] = {}
+        self.auth = auth
 
-    def __init__(self) -> None:
-        self.routes: dict[str, Callable[[], Response]] = {}
+    def route(self, path: str, handler: Handler | LegacyHandler, *, method: str = "GET", protected: bool = False) -> None:
+        normalized_method = method.upper()
+        if not path.startswith("/"):
+            raise ValueError("API paths must start with '/'")
+        accepts_request = len(signature(handler).parameters) > 0
+        def adapted(request: Request) -> Response:
+            if accepts_request:
+                return handler(request)  # type: ignore[misc]
+            return handler()  # type: ignore[call-arg]
+        self.routes[(normalized_method, path)] = Route(normalized_method, adapted, protected)
 
-    def route(self, path: str, handler: Callable[[], Response]) -> None:
-        """Register a path handler."""
-        self.routes[path] = handler
-
-    def handle(self, path: str) -> Response:
-        """Handle a path."""
-        handler = self.routes.get(path)
-        return handler() if handler else Response(404, {"error": "not_found"})
+    def handle(self, target: str, *, method: str = "GET", headers: dict[str, str] | None = None, body: dict[str, object] | None = None) -> Response:
+        request = Request.from_target(target, method=method, headers=headers, body=body)
+        route = self.routes.get((request.method, request.path))
+        if route is None:
+            allowed = tuple(registered.method for (_, registered_path), registered in self.routes.items() if registered_path == request.path)
+            return method_not_allowed(allowed) if allowed else not_found()
+        if route.protected and (self.auth is None or not self.auth.verify(request.bearer_token or "")):
+            return unauthorized()
+        return route.handler(request)
