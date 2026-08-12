@@ -18,8 +18,8 @@ def test_pwa_render_is_valid_json_and_preserves_article_fields():
     payload = json.loads(PWAPublisher().render(article))
     assert payload["id"] == "1"
     assert payload["title"] == "خبر تست"
-    assert payload["category"] == "technology"
-    assert payload["published_at"].startswith("2026-01-01")
+    assert payload["tags"] == ["technology"]
+    assert payload["date_published"].startswith("2026-01-01")
 
 
 def test_pwa_publish_returns_delivery_result():
