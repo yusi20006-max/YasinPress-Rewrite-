@@ -24,6 +24,7 @@ class Job:
     started_at: datetime | None = None
     finished_at: datetime | None = None
     error: str | None = None
+    result: object | None = None
 
     def __post_init__(self) -> None:
         if self.created_at is None:
