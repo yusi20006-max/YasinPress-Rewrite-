@@ -5,6 +5,7 @@ from typing import Any
 from yasinpress.ai.base import AIProvider, AIResult
 from yasinpress.ai.config import AIConfig
 from yasinpress.ai.openai_compatible import OpenAICompatibleProvider
+from yasinpress.ai.resilient import AIResiliencePolicy, ResilientAIProvider
 from yasinpress.database.models import Article
 
 
@@ -20,7 +21,11 @@ class NoOpAIProvider(AIProvider):
 
 
 def create_ai_provider(config: AIConfig, *, client: Any | None = None) -> AIProvider:
-    """Build the configured provider without importing a concrete SDK at module import time."""
+    """Build the configured provider and apply the configured resilience policy."""
     if not config.usable() or client is None:
         return NoOpAIProvider()
-    return OpenAICompatibleProvider(client, model=config.model)
+    provider = OpenAICompatibleProvider(client, model=config.model)
+    return ResilientAIProvider(
+        provider,
+        AIResiliencePolicy(timeout_seconds=config.timeout_seconds, max_attempts=2),
+    )
