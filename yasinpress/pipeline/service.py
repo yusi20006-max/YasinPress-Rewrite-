@@ -67,51 +67,27 @@ class ProcessingService:
                 if result.title == article.title and result.content == article.content:
                     ai_state = "fallback"
                 return Article(
-                    id=article.id,
-                    title=result.title,
-                    url=article.url,
-                    content=result.content,
-                    source=article.source,
-                    published_at=article.published_at,
-                    category=article.category,
-                    event_id=article.event_id,
-                    received_at=article.received_at,
-                    lifecycle_state=article.lifecycle_state,
-                    ai_state=ai_state,
-                    ai_error=None,
+                    id=article.id, title=result.title, url=article.url, content=result.content,
+                    source=article.source, published_at=article.published_at, category=article.category,
+                    event_id=article.event_id, received_at=article.received_at,
+                    lifecycle_state=article.lifecycle_state, ai_state=ai_state, ai_error=None,
                     source_metadata=article.source_metadata,
                 )
             return Article(
-                id=article.id,
-                title=article.title,
-                url=article.url,
-                content=article.content,
-                source=article.source,
-                published_at=article.published_at,
-                category=article.category,
-                event_id=article.event_id,
-                received_at=article.received_at,
-                lifecycle_state=article.lifecycle_state,
-                ai_state="failed",
-                ai_error=getattr(result, "error", "AI failed"),
-                source_metadata=article.source_metadata,
+                id=article.id, title=article.title, url=article.url, content=article.content,
+                source=article.source, published_at=article.published_at, category=article.category,
+                event_id=article.event_id, received_at=article.received_at,
+                lifecycle_state=article.lifecycle_state, ai_state="failed",
+                ai_error=getattr(result, "error", "AI failed"), source_metadata=article.source_metadata,
             )
         rewrite = getattr(self.ai, "rewrite", None)
         if rewrite is not None:
             content = rewrite(article.content)
             return Article(
-                id=article.id,
-                title=article.title,
-                url=article.url,
-                content=content,
-                source=article.source,
-                published_at=article.published_at,
-                category=article.category,
-                event_id=article.event_id,
-                received_at=article.received_at,
-                lifecycle_state=article.lifecycle_state,
-                ai_state="rewritten",
-                ai_error=None,
+                id=article.id, title=article.title, url=article.url, content=content,
+                source=article.source, published_at=article.published_at, category=article.category,
+                event_id=article.event_id, received_at=article.received_at,
+                lifecycle_state=article.lifecycle_state, ai_state="rewritten", ai_error=None,
                 source_metadata=article.source_metadata,
             )
         return article
@@ -126,16 +102,13 @@ class ProcessingService:
     def _published_last_hour(self, now: datetime) -> int:
         cutoff = now - timedelta(hours=1)
         if self.history is not None:
-            return sum(
-                record.success and record.created_at >= cutoff for record in self.history.all()
-            )
+            return sum(record.success and record.created_at >= cutoff for record in self.history.all())
         return 0
 
     def _select_fair_batch(self, articles: tuple[Article, ...]) -> tuple[Article, ...]:
         buckets: dict[str, list[Article]] = defaultdict(list)
         for article in sorted(articles, key=lambda item: item.published_at, reverse=True):
             buckets[article.source].append(article)
-
         selected: list[Article] = []
         while len(selected) < self.max_publications_per_hour and buckets:
             for source in tuple(buckets):
@@ -152,22 +125,17 @@ class ProcessingService:
         result = self.pipeline.process(unique_items(items))
         articles = tuple(self._enrich(article) for article in result.articles)
         now = datetime.now(UTC)
-
         candidates = []
         old_count = 0
         from yasinpress.processing.breaking import detect_breaking
 
         for article in articles:
             breaking_res = detect_breaking(article.title, article.content)
-            limit = self.max_age
-            if breaking_res.is_breaking and self.allow_breaking_exemption:
-                limit = self.breaking_max_age
-
+            limit = self.breaking_max_age if breaking_res.is_breaking and self.allow_breaking_exemption else self.max_age
             cutoff = now - limit
             pub = article.published_at
             if pub.tzinfo is None:
                 pub = pub.replace(tzinfo=UTC)
-
             if pub < cutoff:
                 old_count += 1
             else:
@@ -178,62 +146,60 @@ class ProcessingService:
         duplicate_count = len(candidates) - len(undelivered)
 
         if self.publication_queue is not None:
-            from yasinpress.processing.priority import calculate_priority
             from yasinpress.processing.breaking import detect_breaking
+            from yasinpress.processing.priority import calculate_priority
 
             max_att = 3
             if self.publisher.publishers:
-                max_att = getattr(self.publisher.publishers[0], "policy", None)
-                if max_att:
-                    max_att = getattr(max_att, "max_attempts", 3)
-                else:
-                    max_att = 3
+                policy = getattr(self.publisher.publishers[0], "policy", None)
+                max_att = getattr(policy, "max_attempts", 3) if policy else 3
 
+            queued_jobs = 0
             for article in undelivered:
                 breaking_res = detect_breaking(article.title, article.content)
                 priority_res = calculate_priority(article.title, article.content)
-
                 if breaking_res.is_breaking:
-                    level = "breaking"
-                    score = 40
+                    level, score = "breaking", 40
                 elif priority_res.level == "high":
-                    level = "urgent"
-                    score = 30
+                    level, score = "urgent", 30
                 elif priority_res.level == "medium":
-                    level = "important"
-                    score = 20
+                    level, score = "important", 20
                 else:
-                    level = "normal"
-                    score = 10
+                    level, score = "normal", 10
 
                 for publisher in self.publisher.publishers:
                     job_id = f"{article.id}:{publisher.publisher.name}"
                     if not self.publication_queue.exists(job_id):
-                        job = PublicationJob(
-                            id=job_id,
-                            article_id=article.id,
-                            destination=publisher.publisher.name,
-                            status="pending",
-                            priority=score,
-                            priority_level=level,
-                            source=article.source,
-                            max_attempts=max_att,
+                        self.publication_queue.add_job(
+                            PublicationJob(
+                                id=job_id,
+                                article_id=article.id,
+                                destination=publisher.publisher.name,
+                                status="pending",
+                                priority=score,
+                                priority_level=level,
+                                source=article.source,
+                                max_attempts=max_att,
+                            )
                         )
-                        self.publication_queue.add_job(job)
+                        queued_jobs += 1
 
-            selected = ()
-            queued_count = len(undelivered)
-            results = []
-        else:
-            published_last_hour = self._published_last_hour(now)
-            available = max(0, self.max_publications_per_hour - published_last_hour)
-            selected = self._select_fair_batch(undelivered)[:available]
-            queued_count = max(0, len(undelivered) - len(selected))
+            return ProcessingReport(
+                PipelineResult(len(articles), result.rejected, articles),
+                PublishReport(tuple()),
+                old_count=old_count,
+                queued_count=queued_jobs,
+                duplicate_count=duplicate_count,
+            )
 
-            results = []
-            for article in selected:
-                report = self.publisher.publish(article)
-                results.extend(report.results)
+        published_last_hour = self._published_last_hour(now)
+        available = max(0, self.max_publications_per_hour - published_last_hour)
+        selected = self._select_fair_batch(undelivered)[:available]
+        queued_count = max(0, len(undelivered) - len(selected))
+        results: list[PublishResult] = []
+        for article in selected:
+            report = self.publisher.publish(article)
+            results.extend(report.results)
 
         return ProcessingReport(
             PipelineResult(len(articles), result.rejected, articles),
