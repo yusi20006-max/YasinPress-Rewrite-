@@ -15,7 +15,7 @@ class EnrichmentResult:
 
 
 class ArticleEnricher:
-    """Apply optional AI enrichment while preserving deterministic content on failure."""
+    """Apply optional AI enrichment without destroying persisted article state."""
 
     def __init__(self, ai: SafeAIEnricher | None = None) -> None:
         self.ai = ai or SafeAIEnricher()
@@ -34,6 +34,11 @@ class ArticleEnricher:
             source=article.source,
             published_at=article.published_at,
             category=article.category,
+            event_id=article.event_id,
+            received_at=article.received_at,
+            lifecycle_state="processed",
+            ai_state="rewritten" if modified else "unchanged",
+            ai_error=None,
             ai_modified=modified,
         )
         return EnrichmentResult(enriched, True, result.provider)
