@@ -16,3 +16,19 @@ class Article:
     published_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     category: str | None = None
     ai_modified: bool = False
+    event_id: str | None = None
+    received_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    lifecycle_state: str = "fetched"
+    ai_state: str = "none"
+    ai_error: str | None = None
+    source_metadata: str | None = None
+
+    @property
+    def age(self) -> timedelta:
+        """Return the age of the article relative to UTC now."""
+        pub = self.published_at
+        if pub.tzinfo is None:
+            pub = pub.replace(tzinfo=UTC)
+        else:
+            pub = pub.astimezone(UTC)
+        return datetime.now(UTC) - pub

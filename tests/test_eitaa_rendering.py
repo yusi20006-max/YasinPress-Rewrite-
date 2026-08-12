@@ -38,7 +38,7 @@ def test_html_is_escaped():
         id=item.id,
         title='<script>alert("x")</script>',
         url=item.url,
-        content='<b>unsafe</b>',
+        content="<b>unsafe</b>",
         source=item.source,
         published_at=item.published_at,
     )
