@@ -32,7 +32,7 @@ class YasinPressApplication:
         repository: SQLiteArticleRepository | None = None,
         repositories: SQLiteRepositories | None = None,
         retry_policy: RetryPolicy | None = None,
-        max_article_age_hours: float = 6.0,
+        max_article_age_hours: float = 12.0,
         max_publications_per_hour: int = 10,
     ) -> None:
         self.repositories = repositories
@@ -74,7 +74,7 @@ class YasinPressApplication:
         return engine.run_once(publisher_map, self.repository)
 
     def publish_pending(self, max_jobs: int = 10) -> tuple[PublishResult, ...]:
-        """Drain at most ``max_jobs`` queue slots through the durable worker path."""
+        """Drain at most ``max_jobs`` jobs through the durable worker path."""
         results: list[PublishResult] = []
         for _ in range(max(0, max_jobs)):
             result = self.publish_once()
