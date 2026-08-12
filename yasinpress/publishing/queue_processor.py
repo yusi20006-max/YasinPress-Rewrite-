@@ -42,16 +42,20 @@ class PublicationQueueProcessor:
             return []
 
         cutoff = now - timedelta(hours=1)
-        recent_successes = [r for r in self.repositories.delivery_history.all() if r.success and r.created_at >= cutoff]
+        recent_successes = [
+            r for r in self.repositories.delivery_history.all()
+            if r.success and r.created_at >= cutoff
+        ]
+        # Rate limits are publication-message limits, not unique-article limits.
+        # A single article sent to two destinations consumes two publication slots.
         published_keys = {(r.article_id, r.destination) for r in recent_successes}
-        published_article_ids = {article_id for article_id, _ in published_keys}
-        available_slots = self.max_global_per_hour - len(published_article_ids)
+        available_slots = max(0, self.max_global_per_hour - len(recent_successes))
         if available_slots <= 0:
             return []
 
         source_counts: dict[str, int] = defaultdict(int)
-        for article_id in published_article_ids:
-            article = self.repositories.articles.get(article_id)
+        for record in recent_successes:
+            article = self.repositories.articles.get(record.article_id)
             if article:
                 source_counts[article.source] += 1
 
@@ -63,7 +67,7 @@ class PublicationQueueProcessor:
                 jobs.sort(key=lambda j: j.created_at)
 
         selected_jobs: list[PublicationJob] = []
-        reserved_articles = set(published_article_ids)
+        selected_source_counts: dict[str, int] = defaultdict(int)
         for priority in sorted(by_priority, reverse=True):
             if available_slots <= 0:
                 break
@@ -72,17 +76,19 @@ class PublicationQueueProcessor:
             while active_sources and available_slots > 0:
                 progressed = False
                 for source in list(active_sources):
-                    if source_counts[source] >= self.max_source_per_hour or not sources[source]:
+                    if source_counts[source] + selected_source_counts[source] >= self.max_source_per_hour or not sources[source]:
                         active_sources.remove(source)
                         continue
                     job = sources[source].pop(0)
-                    if job.article_id in reserved_articles:
+                    key = (job.article_id, job.destination)
+                    if key in published_keys:
                         continue
                     selected_jobs.append(job)
-                    reserved_articles.add(job.article_id)
-                    source_counts[source] += 1
+                    selected_source_counts[source] += 1
                     available_slots -= 1
                     progressed = True
+                    if available_slots <= 0:
+                        break
                 if not progressed:
                     break
 
