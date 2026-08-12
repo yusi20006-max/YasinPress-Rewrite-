@@ -43,9 +43,9 @@ class PublicationQueueProcessor:
 
         cutoff = now - timedelta(hours=1)
         recent_successes = [r for r in self.repositories.delivery_history.all() if r.success and r.created_at >= cutoff]
-        published_article_ids = {r.article_id for r in recent_successes}
-        global_count = len(published_article_ids)
-        available_slots = self.max_global_per_hour - global_count
+        published_keys = {(r.article_id, r.destination) for r in recent_successes}
+        published_article_ids = {article_id for article_id, _ in published_keys}
+        available_slots = self.max_global_per_hour - len(published_article_ids)
         if available_slots <= 0:
             return []
 
@@ -72,8 +72,6 @@ class PublicationQueueProcessor:
             while active_sources and available_slots > 0:
                 progressed = False
                 for source in list(active_sources):
-                    if available_slots <= 0:
-                        break
                     if source_counts[source] >= self.max_source_per_hour or not sources[source]:
                         active_sources.remove(source)
                         continue
