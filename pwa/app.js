@@ -1,4 +1,5 @@
 const FEED_URL = "../data/pwa/feed.json";
+const LOCAL_FEED_KEY = "yasinpress:last-feed";
 const feedElement = document.querySelector("#feed");
 const stateElement = document.querySelector("#state");
 
@@ -11,10 +12,10 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function render(feed) {
+function render(feed, offline = false) {
   const items = Array.isArray(feed.items) ? feed.items : [];
   stateElement.textContent = items.length
-    ? `${items.length} خبر`
+    ? `${items.length} خبر${offline ? " — حالت آفلاین" : ""}`
     : "خبری برای نمایش وجود ندارد.";
   feedElement.innerHTML = items.map((item) => `
     <article class="card">
@@ -25,14 +26,28 @@ function render(feed) {
     </article>`).join("");
 }
 
+function loadCachedFeed() {
+  try {
+    const cached = localStorage.getItem(LOCAL_FEED_KEY);
+    if (!cached) return false;
+    render(JSON.parse(cached), true);
+    return true;
+  } catch (error) {
+    console.error("YasinPress cached feed error", error);
+    return false;
+  }
+}
+
 async function loadFeed() {
   stateElement.textContent = "در حال دریافت اخبار…";
   try {
     const response = await fetch(`${FEED_URL}?t=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    render(await response.json());
+    const feed = await response.json();
+    localStorage.setItem(LOCAL_FEED_KEY, JSON.stringify(feed));
+    render(feed);
   } catch (error) {
-    stateElement.textContent = "دریافت فید ناموفق بود. بعداً دوباره تلاش کنید.";
+    if (!loadCachedFeed()) stateElement.textContent = "دریافت فید ناموفق بود. بعداً دوباره تلاش کنید.";
     console.error("YasinPress PWA feed error", error);
   }
 }
