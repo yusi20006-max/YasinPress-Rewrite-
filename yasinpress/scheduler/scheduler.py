@@ -46,7 +46,8 @@ class Scheduler:
             if scheduled.next_run_at > current:
                 continue
             execution = JobExecution(name=scheduled.schedule.name)
-            self.executions.append(execution.run(scheduled.handler))
+            execution = execution.run(scheduled.handler)
+            self.executions.append(execution)
             created.append(execution)
             scheduled.next_run_at = current + scheduled.schedule.interval
         return tuple(created)
