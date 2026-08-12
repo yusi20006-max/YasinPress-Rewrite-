@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from yasinpress.database.models import Article
 from yasinpress.publishing import Publisher, PublishResult
 from yasinpress.publishing.orchestrator import PublishingOrchestrator
+from yasinpress.publishing.reliability import RetryPolicy
 
 
 class GoodPublisher(Publisher):
@@ -40,3 +41,19 @@ def test_one_publisher_failure_does_not_block_other_destinations():
     assert not report.results[0].success
     assert report.results[1].success
     assert report.success_count == 1
+
+
+def test_successful_destination_is_not_retried_when_another_destination_fails():
+    report = PublishingOrchestrator(
+        [GoodPublisher(), FailingPublisher()],
+        retry_policy=RetryPolicy(max_attempts=1),
+    )
+
+    first = report.publish(article())
+    second = report.publish(article())
+
+    assert first.results[0].success
+    assert first.results[1].success is False
+    assert second.results[0].skipped is True
+    assert second.results[1].success is False
+    assert second.results[1].skipped is False
