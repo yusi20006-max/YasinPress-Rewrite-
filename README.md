@@ -21,20 +21,39 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
 cp .env.example .env
+yasinpress version
 yasinpress status
 yasinpress health
 yasinpress config
 yasinpress run
 ```
 
-When `YASINPRESS_FEEDS` is configured, `yasinpress run` fetches the feeds on the scheduler interval and processes new articles. PWA and RSS publishers are active independently and write to:
+`yasinpress run` performs startup feed validation/discovery, then runs the scheduler and worker continuously. Stop it with `Ctrl+C`.
+
+### RSS input
+
+Configure one or more comma-separated feeds with `YASINPRESS_FEEDS`. At startup YasinPress probes configured feeds; if none are configured or all configured feeds fail, it can discover active feeds from the source catalog. A live feed is required for new articles to enter the pipeline.
+
+### Independent PWA and RSS outputs
+
+When `YASINPRESS_FEEDS` is configured, new articles are processed and published to each configured destination independently:
 
 - `data/pwa/feed.json` — JSON Feed 1.1 for the PWA/web layer.
 - `data/rss/feed.xml` — RSS 2.0 for standard feed readers.
 
-The output paths, titles, feed URLs, maximum item count, scheduling, freshness, and publication limits are configurable through `.env` using the variables documented in `.env.example`.
+Each destination has its own idempotency key. A successful PWA delivery does **not** mark the RSS destination as delivered, and vice versa. Therefore a temporary failure in one destination can be retried later without re-publishing the successful destination.
+
+The output paths, titles, feed URLs, maximum item count, scheduling, freshness, and publication limits are configurable through `.env` using the variables documented in `.env.example`, including `YASINPRESS_PWA_HOME_URL`, `YASINPRESS_PWA_FEED_URL`, `YASINPRESS_RSS_LINK`, and `YASINPRESS_RSS_FEED_URL`.
 
 Eitaa credentials are optional. If they are absent, PWA and RSS publishing continue normally.
+
+## Verification
+
+```bash
+python -m pytest -q
+```
+
+The test suite covers destination contracts, persistent PWA/RSS feeds, replacement/idempotency behavior, and the publishing orchestration boundary.
 
 ## Project tree
 
