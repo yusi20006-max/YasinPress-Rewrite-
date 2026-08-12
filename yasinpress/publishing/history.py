@@ -12,6 +12,7 @@ class DeliveryRecord:
     attempts: int
     external_id: str | None = None
     error: str | None = None
+    source: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 

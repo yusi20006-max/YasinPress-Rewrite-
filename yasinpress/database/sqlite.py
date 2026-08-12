@@ -20,15 +20,29 @@ class SQLiteArticleRepository:
         self.connection.execute("""CREATE TABLE IF NOT EXISTS articles (
             id TEXT PRIMARY KEY, title TEXT NOT NULL, url TEXT NOT NULL,
             content TEXT NOT NULL, source TEXT NOT NULL,
-            published_at TEXT NOT NULL, category TEXT)""")
+            published_at TEXT NOT NULL, category TEXT,
+            priority TEXT NOT NULL DEFAULT 'normal',
+            is_ai_rewritten INTEGER NOT NULL DEFAULT 0)""")
+        existing_columns = {
+            row[1] for row in self.connection.execute("PRAGMA table_info(articles)")
+        }
+        if "priority" not in existing_columns:
+            self.connection.execute(
+                "ALTER TABLE articles ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'"
+            )
+        if "is_ai_rewritten" not in existing_columns:
+            self.connection.execute(
+                "ALTER TABLE articles ADD COLUMN is_ai_rewritten INTEGER NOT NULL DEFAULT 0"
+            )
         self.connection.commit()
 
     def save(self, article: Article) -> None:
         self.connection.execute(
-            """INSERT INTO articles(id,title,url,content,source,published_at,category)
-               VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+            """INSERT INTO articles(id,title,url,content,source,published_at,category,priority,is_ai_rewritten)
+               VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
                title=excluded.title,url=excluded.url,content=excluded.content,
-               source=excluded.source,published_at=excluded.published_at,category=excluded.category""",
+               source=excluded.source,published_at=excluded.published_at,category=excluded.category,
+               priority=excluded.priority,is_ai_rewritten=excluded.is_ai_rewritten""",
             (
                 article.id,
                 article.title,
@@ -37,6 +51,8 @@ class SQLiteArticleRepository:
                 article.source,
                 article.published_at.isoformat(),
                 article.category,
+                article.priority,
+                int(article.is_ai_rewritten),
             ),
         )
         self.connection.commit()
@@ -59,6 +75,8 @@ class SQLiteArticleRepository:
             row["source"],
             datetime.fromisoformat(row["published_at"]),
             row["category"],
+            row["priority"],
+            bool(row["is_ai_rewritten"]),
         )
 
     def all(self) -> tuple[Article, ...]:
@@ -74,6 +92,8 @@ class SQLiteArticleRepository:
                 r["source"],
                 datetime.fromisoformat(r["published_at"]),
                 r["category"],
+                r["priority"],
+                bool(r["is_ai_rewritten"]),
             )
             for r in rows
         )
@@ -91,12 +111,17 @@ class SQLiteDeliveryHistory:
         self.connection.execute("""CREATE TABLE IF NOT EXISTS delivery_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT, article_id TEXT NOT NULL,
             destination TEXT NOT NULL, success INTEGER NOT NULL, attempts INTEGER NOT NULL,
-            external_id TEXT, error TEXT, created_at TEXT NOT NULL)""")
+            external_id TEXT, error TEXT, source TEXT, created_at TEXT NOT NULL)""")
+        existing_columns = {
+            row[1] for row in self.connection.execute("PRAGMA table_info(delivery_history)")
+        }
+        if "source" not in existing_columns:
+            self.connection.execute("ALTER TABLE delivery_history ADD COLUMN source TEXT")
         self.connection.commit()
 
     def add(self, record: DeliveryRecord) -> None:
         self.connection.execute(
-            "INSERT INTO delivery_history(article_id,destination,success,attempts,external_id,error,created_at) VALUES(?,?,?,?,?,?,?)",
+            "INSERT INTO delivery_history(article_id,destination,success,attempts,external_id,error,source,created_at) VALUES(?,?,?,?,?,?,?,?)",
             (
                 record.article_id,
                 record.destination,
@@ -104,6 +129,7 @@ class SQLiteDeliveryHistory:
                 record.attempts,
                 record.external_id,
                 record.error,
+                record.source,
                 record.created_at.isoformat(),
             ),
         )
@@ -111,13 +137,13 @@ class SQLiteDeliveryHistory:
 
     def all(self) -> tuple[DeliveryRecord, ...]:
         rows = self.connection.execute(
-            "SELECT article_id,destination,success,attempts,external_id,error,created_at FROM delivery_history ORDER BY rowid"
+            "SELECT article_id,destination,success,attempts,external_id,error,source,created_at FROM delivery_history ORDER BY rowid"
         ).fetchall()
         return tuple(self._record(row) for row in rows)
 
     def for_article(self, article_id: str) -> tuple[DeliveryRecord, ...]:
         rows = self.connection.execute(
-            "SELECT article_id,destination,success,attempts,external_id,error,created_at FROM delivery_history WHERE article_id=? ORDER BY rowid",
+            "SELECT article_id,destination,success,attempts,external_id,error,source,created_at FROM delivery_history WHERE article_id=? ORDER BY rowid",
             (article_id,),
         ).fetchall()
         return tuple(self._record(row) for row in rows)
@@ -125,7 +151,8 @@ class SQLiteDeliveryHistory:
     @staticmethod
     def _record(row) -> DeliveryRecord:
         return DeliveryRecord(
-            row[0], row[1], bool(row[2]), row[3], row[4], row[5], datetime.fromisoformat(row[6])
+            row[0], row[1], bool(row[2]), row[3], row[4], row[5],
+            source=row[6], created_at=datetime.fromisoformat(row[7]),
         )
 
 

@@ -67,6 +67,7 @@ class PublishingOrchestrator:
                     attempts=publisher.attempts,
                     external_id=result.external_id,
                     error=result.error,
+                    source=article.source,
                 )
             )
             if result.success:

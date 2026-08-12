@@ -25,4 +25,9 @@ def test_all_destination_adapters_share_contract():
     assert isinstance(rss.publish(a), PublishResult)
     assert "<title>خبر تست</title>" in rss.render(a)
     assert json.loads(pwa.render(a))["id"] == "1"
-    assert "https://example.com/1" in eitaa.render(a)
+    # issue #6: URL appears only as href, never as visible raw text
+    rendered = eitaa.render(a)
+    assert 'href="https://example.com/1"' in rendered
+    assert "https://example.com/1" not in rendered.replace('href="https://example.com/1"', "")
+    assert "منبع:" in rendered
+    assert "example.com" in rendered

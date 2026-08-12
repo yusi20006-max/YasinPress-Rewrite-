@@ -47,8 +47,11 @@ def test_orchestrator_retries_and_records_attempts():
 def test_orchestrator_is_idempotent_after_success():
     publisher = FlakyPublisher(0)
     orchestrator = PublishingOrchestrator([publisher], retry_policy=RetryPolicy(max_attempts=1))
-    assert orchestrator.publish(article()).success_count == 1
-    assert orchestrator.publish(article()).success_count == 1
+    first = orchestrator.publish(article())
+    assert first.success_count == 1
+    second = orchestrator.publish(article())
+    assert second.success_count == 0
+    assert second.skipped_count == 1
     assert publisher.calls == 1
 
 

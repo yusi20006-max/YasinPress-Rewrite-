@@ -82,8 +82,17 @@ def _startup_feed_setup() -> None:
     for index, feed in enumerate(feeds, 1):
         print(f"  {index}. {feed.name} — {feed.url}")
 
-    os.environ["YASINPRESS_FEEDS"] = ",".join(feed.url for feed in feeds)
-    print(f"Starting with {len(feeds)} RSS feed(s).")
+    selected = list(feeds)
+    try:
+        if input("Add a custom RSS feed URL? (y/n): ").strip().lower() == "y":
+            custom_url = input("Enter custom feed URL: ").strip()
+            if custom_url:
+                selected.append(RSSFeed("Custom RSS", custom_url))
+    except (EOFError, KeyboardInterrupt):
+        pass
+
+    os.environ["YASINPRESS_FEEDS"] = ",".join(feed.url for feed in selected)
+    print(f"Starting with {len(selected)} RSS feed(s).")
 
 
 def main(argv: list[str] | None = None) -> int:

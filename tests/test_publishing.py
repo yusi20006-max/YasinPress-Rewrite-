@@ -67,7 +67,10 @@ def test_eitaa_publisher_sends_message(monkeypatch):
     assert result.external_id == "42"
     assert captured["url"] == "https://eitaayar.ir/api/bot-token/sendMessage"
     assert captured["data"]["chat_id"] == "123"
-    assert captured["data"]["text"] == "title\n\nbody\n\nhttps://example.com/1"
+    assert captured["data"]["text"] == (
+        'title\n\nbody\n\nمنبع: <a href="https://example.com/1">example.com</a>'
+    )
+    assert captured["data"].get("parse_mode") == "HTML"
 
 
 def test_eitaa_publisher_reports_api_rejection(monkeypatch):
@@ -111,8 +114,11 @@ def test_orchestrator_is_idempotent_after_success():
     orchestrator = PublishingOrchestrator(
         [publisher], retry_policy=RetryPolicy(1), history=history, idempotency=IdempotencyStore()
     )
-    assert orchestrator.publish(ARTICLE).success_count == 1
-    assert orchestrator.publish(ARTICLE).success_count == 1
+    first = orchestrator.publish(ARTICLE)
+    assert first.success_count == 1
+    second = orchestrator.publish(ARTICLE)
+    assert second.success_count == 0
+    assert second.skipped_count == 1
     assert publisher.calls == 1
     assert len(history.all()) == 1
 
