@@ -11,7 +11,9 @@ from yasinpress.health import check_database
 from yasinpress.pipeline.application import YasinPressApplication
 from yasinpress.publishing import Publisher
 from yasinpress.publishing.eitaa import EitaaPublisher
+from yasinpress.publishing.pwa import PWAPublisher
 from yasinpress.publishing.reliability import RetryPolicy
+from yasinpress.publishing.rss import RSSPublisher
 from yasinpress.recovery import recover_jobs
 from yasinpress.runtime import Runtime
 from yasinpress.scheduler.application_job import PipelineJobFactory
@@ -50,16 +52,32 @@ class RuntimeBundle:
 
 
 def _configured_publishers(config: RuntimeConfig) -> tuple[Publisher, ...]:
-    if not config.eitaa_token:
-        return ()
-    return (
-        EitaaPublisher(
-            token=config.eitaa_token,
-            channel=config.eitaa_channel,
-            api_base=config.eitaa_api_base,
-            timeout=config.request_timeout_seconds,
+    publishers: list[Publisher] = [
+        PWAPublisher(
+            output_path=config.pwa_output_path,
+            title=config.pwa_title,
+            home_page_url=config.pwa_home_page_url,
+            feed_url=config.pwa_feed_url,
+            max_items=config.max_feed_items,
         ),
-    )
+        RSSPublisher(
+            output_path=config.rss_output_path,
+            title=config.rss_title,
+            link=config.rss_link,
+            feed_url=config.rss_feed_url,
+            max_items=config.max_feed_items,
+        ),
+    ]
+    if config.eitaa_token:
+        publishers.append(
+            EitaaPublisher(
+                token=config.eitaa_token,
+                channel=config.eitaa_channel,
+                api_base=config.eitaa_api_base,
+                timeout=config.request_timeout_seconds,
+            )
+        )
+    return tuple(publishers)
 
 
 def _feed_label(url: str) -> str:
