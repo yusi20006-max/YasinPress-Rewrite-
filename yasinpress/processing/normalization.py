@@ -1,6 +1,7 @@
 """Article normalization."""
 
 from datetime import UTC, datetime
+
 from yasinpress.core.helpers import stable_hash
 from yasinpress.database.models import Article
 from yasinpress.sources.feed import FeedItem

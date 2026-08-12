@@ -70,7 +70,7 @@ def _startup_feed_setup() -> None:
 
     try:
         feeds = active_feeds()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - active_feeds is a threadpool boundary that could throw any network/parsing exception
         print(f"RSS discovery failed: {exc}")
         return
 
@@ -87,7 +87,7 @@ def _startup_feed_setup() -> None:
     except EOFError:
         answer = ""
 
-    feed_urls = list(feed.url for feed in feeds)
+    feed_urls = [feed.url for feed in feeds]
     if answer in {"y", "yes"}:
         try:
             custom_url = input("آدرس فید سفارشی: ").strip()

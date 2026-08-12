@@ -1,9 +1,6 @@
 from datetime import UTC, datetime, timedelta
-import sqlite3
-import pytest
 
 from yasinpress.database.models import Article
-from yasinpress.database.repositories import ArticleRepository
 from yasinpress.database.sqlite import SQLiteArticleRepository
 from yasinpress.processing.freshness import is_fresh
 from yasinpress.processing.normalization import normalize
