@@ -55,7 +55,7 @@ class ArticleEnricher:
         title = result.title or article.title
         content = result.content or article.content
         modified = title != article.title or content != article.content
-        metadata = dict(article.source_metadata or {}) if isinstance(article.source_metadata, dict) else {}
+        metadata = dict(article.source_metadata)
         metadata.update(result.metadata)
         metadata["ai_provider"] = result.provider
         metadata["ai_breaking"] = result.breaking
@@ -77,7 +77,7 @@ class ArticleEnricher:
             event_id=article.event_id,
             received_at=article.received_at,
             lifecycle_state="processed",
-            ai_state="rewritten" if modified else "fallback_original",
+            ai_state="rewritten",
             ai_error=None,
             ai_modified=modified,
             source_metadata=metadata,
@@ -107,5 +107,5 @@ class ArticleEnricher:
             ai_state=ai_state,
             ai_error=ai_error,
             ai_modified=ai_modified,
-            source_metadata=article.source_metadata,
+            source_metadata=dict(article.source_metadata),
         )
