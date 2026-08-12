@@ -10,7 +10,7 @@ from yasinpress.publishing import Publisher, PublishResult
 
 
 class PWAPublisher(Publisher):
-    """Publish articles to a JSON Feed-compatible file for the PWA layer."""
+    """Publish articles to a persistent JSON Feed 1.1 document for the PWA layer."""
 
     def __init__(
         self,
@@ -20,6 +20,7 @@ class PWAPublisher(Publisher):
         title: str = "YasinPress",
         home_page_url: str = "",
         feed_url: str = "",
+        language: str = "fa",
         max_items: int = 100,
     ) -> None:
         self.endpoint = endpoint
@@ -27,6 +28,7 @@ class PWAPublisher(Publisher):
         self.title = title
         self.home_page_url = home_page_url
         self.feed_url = feed_url
+        self.language = language
         self.max_items = max(1, max_items)
 
     @property
@@ -34,7 +36,7 @@ class PWAPublisher(Publisher):
         return "pwa"
 
     def _item(self, article: Article) -> dict[str, object]:
-        return {
+        item: dict[str, object] = {
             "id": article.id,
             "url": article.url,
             "title": article.title,
@@ -42,6 +44,11 @@ class PWAPublisher(Publisher):
             "date_published": article.published_at.isoformat(),
             "tags": [article.category] if article.category else [],
         }
+        if article.ai_modified:
+            item["date_modified"] = article.received_at.isoformat()
+        if article.source:
+            item["author"] = {"name": article.source}
+        return item
 
     def render(self, article: Article) -> str:
         return json.dumps(self._item(article), ensure_ascii=False, sort_keys=True)
@@ -50,6 +57,7 @@ class PWAPublisher(Publisher):
         feed: dict[str, object] = {
             "version": "https://jsonfeed.org/version/1.1",
             "title": self.title,
+            "language": self.language,
             "items": items[: self.max_items],
         }
         if self.home_page_url:
