@@ -21,7 +21,7 @@ class Article:
     lifecycle_state: str = "fetched"
     ai_state: str = "none"
     ai_error: str | None = None
-    source_metadata: str | None = None
+    source_metadata: dict[str, object] = field(default_factory=dict)
 
     @property
     def age(self) -> timedelta:
