@@ -1,24 +1,56 @@
 from datetime import UTC, datetime
 
+from yasinpress.ai.base import AIResult, AIProvider
+from yasinpress.ai.safe import SafeAIEnricher
 from yasinpress.database.models import Article
+from yasinpress.processing.enrichment import ArticleEnricher
 
 
-def test_article_ai_failure_contract_preserves_provenance():
-    article = Article(
-        id="a1",
-        title="Original title",
-        url="https://example.test/a1",
-        content="Original content",
+class FailingProvider(AIProvider):
+    @property
+    def name(self) -> str:
+        return "fake"
+
+    def enrich(self, article: Article) -> AIResult:
+        raise RuntimeError("provider unavailable")
+
+
+class RewritingProvider(AIProvider):
+    @property
+    def name(self) -> str:
+        return "fake"
+
+    def enrich(self, article: Article) -> AIResult:
+        return AIResult("بازنویسی", "خلاصه", self.name)
+
+
+def make_article() -> Article:
+    return Article(
+        id="YP-TEST-AI",
+        title="عنوان اصلی",
+        url="https://example.com/news",
+        content="متن اصلی",
         source="example",
-        published_at=datetime(2026, 1, 1, tzinfo=UTC),
-        ai_modified=False,
-        ai_state="failed",
-        ai_error="provider timeout",
-        lifecycle_state="processed",
+        published_at=datetime.now(UTC),
     )
 
-    assert article.ai_modified is False
-    assert article.ai_state == "failed"
-    assert article.ai_error == "provider timeout"
-    assert article.title == "Original title"
-    assert article.content == "Original content"
+
+def test_ai_disabled_has_explicit_disabled_state() -> None:
+    result = ArticleEnricher().enrich(make_article())
+    assert result.article.ai_state == "disabled"
+    assert result.provider == "none"
+
+
+def test_provider_failure_falls_back_to_original() -> None:
+    result = ArticleEnricher(SafeAIEnricher(FailingProvider())).enrich(make_article())
+    assert result.article.ai_state == "fallback_original"
+    assert result.article.title == "عنوان اصلی"
+    assert result.article.content == "متن اصلی"
+    assert result.article.ai_error == "provider unavailable"
+
+
+def test_successful_rewrite_sets_rewritten_state() -> None:
+    result = ArticleEnricher(SafeAIEnricher(RewritingProvider())).enrich(make_article())
+    assert result.article.ai_state == "rewritten"
+    assert result.article.ai_modified is True
+    assert result.article.title == "بازنویسی"
