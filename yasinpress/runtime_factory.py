@@ -58,6 +58,7 @@ def _configured_publishers(config: RuntimeConfig) -> tuple[Publisher, ...]:
             title=config.pwa_title,
             home_page_url=config.pwa_home_page_url,
             feed_url=config.pwa_feed_url,
+            language=config.language,
             max_items=config.max_feed_items,
         ),
         RSSPublisher(
@@ -65,6 +66,7 @@ def _configured_publishers(config: RuntimeConfig) -> tuple[Publisher, ...]:
             title=config.rss_title,
             link=config.rss_link,
             feed_url=config.rss_feed_url,
+            language=config.language,
             max_items=config.max_feed_items,
         ),
     ]
