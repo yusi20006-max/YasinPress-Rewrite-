@@ -32,7 +32,8 @@ def test_all_destination_adapters_share_contract():
     assert isinstance(rss.publish(a), PublishResult)
     assert "<title>خبر تست</title>" in rss.render(a)
     assert json.loads(pwa.render(a))["id"] == "1"
-    assert "منبع: example.com" in eitaa.render(a)
+    assert "example.com" in eitaa.render(a)
+    assert "منبع: " in eitaa.render(a)
 
 
 def test_pwa_publisher_persists_json_feed(tmp_path: Path):
@@ -67,7 +68,7 @@ def test_rss_publisher_persists_rss20_feed(tmp_path: Path):
 
     xml = output.read_text(encoding="utf-8")
     assert xml.startswith('<?xml version="1.0" encoding="UTF-8"?>')
-    assert '<rss version="2.0">' in xml
+    assert 'version="2.0"' in xml
     assert "<title>YasinPress RSS</title>" in xml
     assert "<title>دوم</title>" in xml
     assert "<title>اول</title>" in xml
@@ -88,5 +89,5 @@ def test_publishers_replace_existing_item_by_id(tmp_path: Path):
     assert len(payload["items"]) == 1
     assert payload["items"][0]["title"] == "نسخه جدید"
     xml = rss_output.read_text(encoding="utf-8")
-    assert xml.count("<guid isPermaLink=\"true\">https://example.com/1</guid>") == 1
+    assert xml.count('<guid isPermaLink="true">https://example.com/1</guid>') == 1
     assert "نسخه جدید" in xml

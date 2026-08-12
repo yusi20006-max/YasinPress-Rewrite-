@@ -56,7 +56,9 @@ class OperationalReport:
         }
 
     def to_text(self) -> str:
-        status = lambda value: "OK" if value else "DOWN"
+        def status(value):
+            return "OK" if value else "DOWN"
+
         return "\n".join(
             [
                 f"YasinPress hourly report — {self.timestamp.astimezone(UTC).isoformat()}",

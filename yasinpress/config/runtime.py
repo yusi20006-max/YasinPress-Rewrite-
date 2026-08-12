@@ -58,8 +58,12 @@ class RuntimeConfig:
             rss_link=os.getenv("YASINPRESS_RSS_LINK", cls.rss_link).strip(),
             rss_feed_url=os.getenv("YASINPRESS_RSS_FEED_URL", cls.rss_feed_url).strip(),
             max_feed_items=int(os.getenv("YASINPRESS_MAX_FEED_ITEMS", cls.max_feed_items)),
-            max_article_age_hours=float(os.getenv("YASINPRESS_MAX_ARTICLE_AGE_HOURS", cls.max_article_age_hours)),
-            max_publications_per_hour=int(os.getenv("YASINPRESS_MAX_PUBLICATIONS_PER_HOUR", cls.max_publications_per_hour)),
+            max_article_age_hours=float(
+                os.getenv("YASINPRESS_MAX_ARTICLE_AGE_HOURS", cls.max_article_age_hours)
+            ),
+            max_publications_per_hour=int(
+                os.getenv("YASINPRESS_MAX_PUBLICATIONS_PER_HOUR", cls.max_publications_per_hour)
+            ),
         )
 
     def validate(self) -> None:

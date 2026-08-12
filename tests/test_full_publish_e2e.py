@@ -32,7 +32,14 @@ def test_full_feed_to_persistent_publish_and_idempotency(tmp_path):
     item = FeedItem("title", "https://example.com/item", "body", now)
 
     first = app.process_items([item])
+
+    from yasinpress.publishing.queue_processor import PublicationQueueProcessor
+
+    processor = PublicationQueueProcessor(db, [publisher])
+    processor.process_cycle()
+
     second = app.process_items([item])
+    processor.process_cycle()
 
     assert first.persisted_count == 1
     assert second.persisted_count == 1

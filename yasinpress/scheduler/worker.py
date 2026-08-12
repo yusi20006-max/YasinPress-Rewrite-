@@ -29,7 +29,10 @@ class Worker:
         self, job: LifecycleJob, handler: Callable[[], object], *, priority: int = 0
     ) -> LifecycleJob:
         self.store.save(job)
-        task = lambda: handler()
+
+        def task():
+            return handler()
+
         self._pending[id(task)] = job
         self.queue.put(QueuedJob(priority, job.name, task))
         return job

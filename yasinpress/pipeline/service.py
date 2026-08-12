@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from yasinpress.ai.base import AIProvider
-from yasinpress.database.models import Article
+from yasinpress.database.models import Article, PublicationJob
 from yasinpress.pipeline.dedup import unique_items
 from yasinpress.pipeline.runtime import ArticlePipeline, PipelineResult
-from yasinpress.publishing import Publisher, PublishResult
+from yasinpress.publishing import Publisher
 from yasinpress.publishing.orchestrator import PublishingOrchestrator, PublishReport
 from yasinpress.publishing.reliability import RetryPolicy
 from yasinpress.sources.feed import FeedItem
@@ -40,9 +40,11 @@ class ProcessingService:
         breaking_max_article_age_hours: float = 24.0,
         allow_breaking_exemption: bool = True,
         max_publications_per_hour: int = 10,
+        publication_queue=None,
     ) -> None:
         self.ai = ai
         self.pipeline = ArticlePipeline(source)
+        self.publication_queue = publication_queue
         self.publisher = PublishingOrchestrator(
             tuple(publishers),
             retry_policy=retry_policy,
@@ -175,15 +177,63 @@ class ProcessingService:
         undelivered = tuple(article for article in candidates if not self._fully_delivered(article))
         duplicate_count = len(candidates) - len(undelivered)
 
-        published_last_hour = self._published_last_hour(now)
-        available = max(0, self.max_publications_per_hour - published_last_hour)
-        selected = self._select_fair_batch(undelivered)[:available]
-        queued_count = max(0, len(undelivered) - len(selected))
+        if self.publication_queue is not None:
+            from yasinpress.processing.priority import calculate_priority
+            from yasinpress.processing.breaking import detect_breaking
 
-        results: list[PublishResult] = []
-        for article in selected:
-            report = self.publisher.publish(article)
-            results.extend(report.results)
+            max_att = 3
+            if self.publisher.publishers:
+                max_att = getattr(self.publisher.publishers[0], "policy", None)
+                if max_att:
+                    max_att = getattr(max_att, "max_attempts", 3)
+                else:
+                    max_att = 3
+
+            for article in undelivered:
+                breaking_res = detect_breaking(article.title, article.content)
+                priority_res = calculate_priority(article.title, article.content)
+
+                if breaking_res.is_breaking:
+                    level = "breaking"
+                    score = 40
+                elif priority_res.level == "high":
+                    level = "urgent"
+                    score = 30
+                elif priority_res.level == "medium":
+                    level = "important"
+                    score = 20
+                else:
+                    level = "normal"
+                    score = 10
+
+                for publisher in self.publisher.publishers:
+                    job_id = f"{article.id}:{publisher.publisher.name}"
+                    if not self.publication_queue.exists(job_id):
+                        job = PublicationJob(
+                            id=job_id,
+                            article_id=article.id,
+                            destination=publisher.publisher.name,
+                            status="pending",
+                            priority=score,
+                            priority_level=level,
+                            source=article.source,
+                            max_attempts=max_att,
+                        )
+                        self.publication_queue.add_job(job)
+
+            selected = ()
+            queued_count = len(undelivered)
+            results = []
+        else:
+            published_last_hour = self._published_last_hour(now)
+            available = max(0, self.max_publications_per_hour - published_last_hour)
+            selected = self._select_fair_batch(undelivered)[:available]
+            queued_count = max(0, len(undelivered) - len(selected))
+
+            results = []
+            for article in selected:
+                report = self.publisher.publish(article)
+                results.extend(report.results)
 
         return ProcessingReport(
             PipelineResult(len(articles), result.rejected, articles),
