@@ -126,9 +126,7 @@ class ProcessingService:
         cutoff = now - timedelta(hours=1)
         if self.history is not None:
             return sum(
-                record.success
-                and record.created_at >= cutoff
-                for record in self.history.all()
+                record.success and record.created_at >= cutoff for record in self.history.all()
             )
         return 0
 
@@ -157,6 +155,7 @@ class ProcessingService:
         candidates = []
         old_count = 0
         from yasinpress.processing.breaking import detect_breaking
+
         for article in articles:
             breaking_res = detect_breaking(article.title, article.content)
 

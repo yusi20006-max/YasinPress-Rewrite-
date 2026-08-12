@@ -17,7 +17,9 @@ class RSSFeed:
 # assuming that a publisher's RSS endpoint remains unchanged forever.
 RSS_CATALOG: tuple[RSSFeed, ...] = (
     RSSFeed("BBC Persian", "https://feeds.bbci.co.uk/persian/rss.xml"),
-    RSSFeed("BBC Persian - Iran Features", "https://feeds.bbci.co.uk/persian/iran_features/rss.xml"),
+    RSSFeed(
+        "BBC Persian - Iran Features", "https://feeds.bbci.co.uk/persian/iran_features/rss.xml"
+    ),
     RSSFeed("DW Persian", "https://rss.dw.com/xml/rss-fa-all"),
     RSSFeed("Euronews Persian", "https://per.euronews.com/rss"),
     RSSFeed("France 24 Persian", "https://www.france24.com/fa/rss"),

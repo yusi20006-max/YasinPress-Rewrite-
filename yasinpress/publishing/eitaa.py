@@ -52,9 +52,7 @@ class EitaaPublisher(Publisher):
         title = escape(article.title)
         content = escape(article.content)
         return (
-            f"{ai_marker}<b>{title}</b>\n\n"
-            f"{content}\n\n"
-            f'منبع: <a href="{source_url}">{source}</a>'
+            f'{ai_marker}<b>{title}</b>\n\n{content}\n\nمنبع: <a href="{source_url}">{source}</a>'
         )
 
     def publish(self, article: Article) -> PublishResult:

@@ -21,7 +21,14 @@ class ArticleRepository:
             published_at TEXT NOT NULL, category TEXT,
             event_id TEXT, received_at TEXT, lifecycle_state TEXT,
             ai_state TEXT, ai_error TEXT, source_metadata TEXT)""")
-        for column in ["event_id", "received_at", "lifecycle_state", "ai_state", "ai_error", "source_metadata"]:
+        for column in [
+            "event_id",
+            "received_at",
+            "lifecycle_state",
+            "ai_state",
+            "ai_error",
+            "source_metadata",
+        ]:
             try:
                 self.connection.execute(f"ALTER TABLE articles ADD COLUMN {column} TEXT")
             except sqlite3.OperationalError:
@@ -46,10 +53,14 @@ class ArticleRepository:
                 article.url,
                 article.content,
                 article.source,
-                article.published_at.isoformat() if hasattr(article.published_at, "isoformat") else article.published_at,
+                article.published_at.isoformat()
+                if hasattr(article.published_at, "isoformat")
+                else article.published_at,
                 article.category,
                 article.event_id,
-                article.received_at.isoformat() if hasattr(article.received_at, "isoformat") else article.received_at,
+                article.received_at.isoformat()
+                if hasattr(article.received_at, "isoformat")
+                else article.received_at,
                 article.lifecycle_state,
                 article.ai_state,
                 article.ai_error,

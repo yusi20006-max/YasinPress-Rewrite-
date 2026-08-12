@@ -15,6 +15,8 @@ class FeedItem:
     content: str
     published_at: datetime
     source: str = ""
+    media_url: str | None = None
+    media_type: str | None = None
 
 
 def _published_at(item: ET.Element) -> datetime:
@@ -33,10 +35,45 @@ def parse_rss(xml_text: str) -> list[FeedItem]:
     """Parse RSS XML using the standard library."""
     root = ET.fromstring(xml_text)
     items: list[FeedItem] = []
+
+    # We can handle namespaces for media:content
+    namespaces = {"media": "http://search.yahoo.com/mrss/", "atom": "http://www.w3.org/2005/Atom"}
+
     for item in root.findall(".//item"):
         title = item.findtext("title", "").strip()
         url = item.findtext("link", "").strip()
-        content = item.findtext("description", "").strip()
+        content = (
+            item.findtext("description")
+            or item.findtext("{http://www.w3.org/2005/Atom}summary")
+            or ""
+        ).strip()
+
+        # Enclosure
+        enclosure = item.find("enclosure")
+        media_url = None
+        media_type = None
+        if enclosure is not None:
+            media_url = enclosure.get("url")
+            media_type = enclosure.get("type")
+
+        # Media:content
+        if not media_url:
+            media_content = item.find("media:content", namespaces) or item.find(
+                ".//{http://search.yahoo.com/mrss/}content"
+            )
+            if media_content is not None:
+                media_url = media_content.get("url")
+                media_type = media_content.get("type")
+
         if title and url:
-            items.append(FeedItem(title, url, content, _published_at(item)))
+            items.append(
+                FeedItem(
+                    title=title,
+                    url=url,
+                    content=content,
+                    published_at=_published_at(item),
+                    media_url=media_url,
+                    media_type=media_type,
+                )
+            )
     return items

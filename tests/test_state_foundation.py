@@ -72,7 +72,7 @@ def test_event_id_grouping_without_conflation():
     )
     item2 = FeedItem(
         title="خبر تستی جدید - آپدیت ۲",
-        url="https://example.com/unique-news-url-2", # Distinct update url
+        url="https://example.com/unique-news-url-2",  # Distinct update url
         content="محتوا ۲",
         published_at=pub_at2,
     )
@@ -119,10 +119,14 @@ def test_freshness_eligibility_scenarios():
     assert not is_fresh(now - timedelta(hours=24, seconds=1), now=now, is_breaking=True)
 
     # Custom breaking limit can be configured
-    assert is_fresh(now - timedelta(hours=47), now=now, is_breaking=True, breaking_max_age=timedelta(hours=48))
+    assert is_fresh(
+        now - timedelta(hours=47), now=now, is_breaking=True, breaking_max_age=timedelta(hours=48)
+    )
 
     # Breaking exception can be explicitly disabled
-    assert not is_fresh(now - timedelta(hours=20), now=now, is_breaking=True, allow_breaking_exemption=False)
+    assert not is_fresh(
+        now - timedelta(hours=20), now=now, is_breaking=True, allow_breaking_exemption=False
+    )
 
 
 def test_ai_state_and_error_persistence(tmp_path):
