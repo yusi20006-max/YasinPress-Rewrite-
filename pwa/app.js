@@ -12,18 +12,36 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function safeArticleUrl(value) {
+  try {
+    const url = new URL(String(value || ""), window.location.href);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "#";
+  } catch {
+    return "#";
+  }
+}
+
+function formatDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("fa-IR");
+}
+
 function render(feed, offline = false) {
   const items = Array.isArray(feed.items) ? feed.items : [];
   stateElement.textContent = items.length
     ? `${items.length} خبر${offline ? " — حالت آفلاین" : ""}`
     : "خبری برای نمایش وجود ندارد.";
-  feedElement.innerHTML = items.map((item) => `
+  feedElement.innerHTML = items.map((item) => {
+    const url = safeArticleUrl(item.url);
+    const published = String(item.date_published || "");
+    return `
     <article class="card">
       <div class="meta">${escapeHtml(item.tags?.[0] || "خبر")}</div>
-      <h2><a href="${escapeHtml(item.url || "#")}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title || "بدون عنوان")}</a></h2>
+      <h2><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title || "بدون عنوان")}</a></h2>
       <p>${escapeHtml(item.content_text || "")}</p>
-      <time datetime="${escapeHtml(item.date_published || "")}">${new Date(item.date_published).toLocaleString("fa-IR")}</time>
-    </article>`).join("");
+      <time datetime="${escapeHtml(published)}">${escapeHtml(formatDate(published))}</time>
+    </article>`;
+  }).join("");
 }
 
 function loadCachedFeed() {
