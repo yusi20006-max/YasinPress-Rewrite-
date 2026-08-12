@@ -24,6 +24,7 @@ class RSSPublisher(Publisher):
         title: str = "YasinPress",
         link: str = "",
         description: str = "YasinPress news feed",
+        language: str = "fa",
         max_items: int = 100,
     ) -> None:
         self.feed_url = feed_url
@@ -31,6 +32,7 @@ class RSSPublisher(Publisher):
         self.title = title
         self.link = link
         self.description = description
+        self.language = language
         self.max_items = max(1, max_items)
 
     @property
@@ -46,6 +48,8 @@ class RSSPublisher(Publisher):
         SubElement(item, "pubDate").text = format_datetime(article.published_at)
         if article.category:
             SubElement(item, "category").text = article.category
+        if article.source:
+            SubElement(item, "source").text = article.source
         return item
 
     def render(self, article: Article) -> str:
@@ -57,12 +61,18 @@ class RSSPublisher(Publisher):
         SubElement(channel, "title").text = self.title
         SubElement(channel, "link").text = self.link or self.feed_url
         SubElement(channel, "description").text = self.description
+        if self.language:
+            SubElement(channel, "language").text = self.language
         if self.feed_url:
             SubElement(
                 channel,
                 QName(ATOM_NS, "link"),
                 {"href": self.feed_url, "rel": "self", "type": "application/rss+xml"},
             )
+        if items:
+            latest = items[0].findtext("pubDate")
+            if latest:
+                SubElement(channel, "lastBuildDate").text = latest
         for item in items[: self.max_items]:
             channel.append(item)
         return rss
