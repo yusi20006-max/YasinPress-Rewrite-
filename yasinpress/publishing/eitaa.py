@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 import httpx
 
 from yasinpress.database.models import Article
+from yasinpress.processing.breaking import detect_breaking
 from yasinpress.publishing import Publisher, PublishResult
 
 
@@ -41,18 +42,17 @@ class EitaaPublisher(Publisher):
         return hostname.removeprefix("www.") if hostname else "منبع"
 
     def render(self, article: Article) -> str:
-        """Render HTML so the source is an actual clickable link.
-
-        The AI marker is emitted only when processing provenance says the
-        article text was changed by AI; merely having AI enabled is not enough.
-        """
+        """Render the final public Eitaa message without exposing a raw URL."""
         source = escape(self._source_label(article))
         source_url = escape(article.url, quote=True)
+        breaking = detect_breaking(article.title, article.content).is_breaking
         ai_marker = "🤖 " if article.ai_modified else ""
+        breaking_marker = "🚨 <b>خبر فوری</b>\n\n" if breaking else ""
         title = escape(article.title)
         content = escape(article.content)
         return (
-            f'{ai_marker}<b>{title}</b>\n\n{content}\n\nمنبع: <a href="{source_url}">{source}</a>'
+            f'{breaking_marker}{ai_marker}<b>{title}</b>\n\n'
+            f'{content}\n\nمنبع: <a href="{source_url}">{source}</a>'
         )
 
     def publish(self, article: Article) -> PublishResult:
