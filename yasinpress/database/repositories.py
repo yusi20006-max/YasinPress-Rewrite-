@@ -1,13 +1,16 @@
 """Repository implementations."""
 
+from __future__ import annotations
+
 import sqlite3
+from collections.abc import Iterable
 from datetime import UTC, datetime
 
 from .models import Article
 
 
 class ArticleRepository:
-    """SQLite repository for articles."""
+    """SQLite repository for articles and operational counters."""
 
     def __init__(self, connection: sqlite3.Connection) -> None:
         self.connection = connection
@@ -62,45 +65,35 @@ class ArticleRepository:
         ).fetchone()
         return row is not None
 
-    def get(self, article_id: str) -> Article | None:
-        row = self.connection.execute(
-            "SELECT * FROM articles WHERE id=? OR url=? LIMIT 1", (article_id, article_id)
-        ).fetchone()
-        if row is None:
-            return None
-        return self._row_to_article(row)
+    def count(self) -> int:
+        row = self.connection.execute("SELECT COUNT(*) FROM articles").fetchone()
+        return int(row[0]) if row else 0
 
-    def all(self) -> tuple[Article, ...]:
-        rows = self.connection.execute(
-            "SELECT * FROM articles ORDER BY published_at DESC"
-        ).fetchall()
-        return tuple(self._row_to_article(row) for row in rows)
-
-    def _row_to_article(self, row) -> Article:
-        def get_col(name, default=None):
-            try:
-                return row[name]
-            except (IndexError, KeyError):
-                return default
-
-        pub_str = get_col("published_at")
-        pub = datetime.fromisoformat(pub_str) if pub_str else datetime.now(UTC)
-
-        rec_str = get_col("received_at")
-        rec = datetime.fromisoformat(rec_str) if rec_str else datetime.now(UTC)
-
-        return Article(
-            id=get_col("id"),
-            title=get_col("title"),
-            url=get_col("url"),
-            content=get_col("content"),
-            source=get_col("source"),
-            published_at=pub,
-            category=get_col("category"),
-            event_id=get_col("event_id"),
-            received_at=rec,
-            lifecycle_state=get_col("lifecycle_state", "fetched"),
-            ai_state=get_col("ai_state", "none"),
-            ai_error=get_col("ai_error"),
-            source_metadata=get_col("source_metadata"),
+    def save_operational_report(self, report: dict[str, object]) -> None:
+        """Persist an hourly report snapshot for PWA/API consumers."""
+        self.connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS operational_reports (
+                timestamp TEXT PRIMARY KEY,
+                payload TEXT NOT NULL
+            )
+            """
         )
+        import json
+
+        timestamp = str(report.get("timestamp") or datetime.now(UTC).isoformat())
+        self.connection.execute(
+            "INSERT OR REPLACE INTO operational_reports(timestamp, payload) VALUES (?, ?)",
+            (timestamp, json.dumps(report, ensure_ascii=False, sort_keys=True)),
+        )
+        self.connection.commit()
+
+    def recent_operational_reports(self, limit: int = 24) -> Iterable[dict[str, object]]:
+        """Return the latest persisted hourly reports, newest first."""
+        import json
+
+        rows = self.connection.execute(
+            "SELECT payload FROM operational_reports ORDER BY timestamp DESC LIMIT ?",
+            (max(1, limit),),
+        ).fetchall()
+        return (json.loads(row[0]) for row in rows)

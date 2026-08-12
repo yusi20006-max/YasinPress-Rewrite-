@@ -15,7 +15,7 @@ class EnrichmentResult:
 
 
 class ArticleEnricher:
-    """Apply optional AI enrichment while preserving the deterministic article on failure."""
+    """Apply optional AI enrichment while preserving deterministic content on failure."""
 
     def __init__(self, ai: SafeAIEnricher | None = None) -> None:
         self.ai = ai or SafeAIEnricher()
@@ -25,6 +25,7 @@ class ArticleEnricher:
         if not result.success:
             return EnrichmentResult(article, False, result.provider, result.error)
 
+        modified = result.title != article.title or result.content != article.content
         enriched = Article(
             id=article.id,
             title=result.title,
@@ -33,5 +34,6 @@ class ArticleEnricher:
             source=article.source,
             published_at=article.published_at,
             category=article.category,
+            ai_modified=modified,
         )
         return EnrichmentResult(enriched, True, result.provider)

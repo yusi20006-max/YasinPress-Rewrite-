@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape
 from urllib.parse import urlparse
 
 import httpx
@@ -9,7 +10,7 @@ from yasinpress.publishing import Publisher, PublishResult
 
 
 class EitaaPublisher(Publisher):
-    """Publish attributed text articles through the Eitaa Yar Bot API."""
+    """Publish attributed articles through the Eitaa Yar Bot API."""
 
     def __init__(
         self,
@@ -37,17 +38,33 @@ class EitaaPublisher(Publisher):
     @staticmethod
     def _source_label(article: Article) -> str:
         hostname = urlparse(article.url).hostname
-        if not hostname:
-            return "منبع"
-        return hostname.removeprefix("www.")
+        return hostname.removeprefix("www.") if hostname else "منبع"
 
     def render(self, article: Article) -> str:
-        source = self._source_label(article)
-        return f"{article.title}\n\n{article.content}\n\nمنبع: {source}"
+        """Render HTML so the source is an actual clickable link.
+
+        The AI marker is emitted only when processing provenance says the
+        article text was changed by AI; merely having AI enabled is not enough.
+        """
+        source = escape(self._source_label(article))
+        source_url = escape(article.url, quote=True)
+        ai_marker = "🤖 " if article.ai_modified else ""
+        title = escape(article.title)
+        content = escape(article.content)
+        return (
+            f"{ai_marker}<b>{title}</b>\n\n"
+            f"{content}\n\n"
+            f'منبع: <a href="{source_url}">{source}</a>'
+        )
 
     def publish(self, article: Article) -> PublishResult:
         url = f"{self.api_base}/{self.token}/sendMessage"
-        payload = {"chat_id": self.channel, "text": self.render(article)}
+        payload = {
+            "chat_id": self.channel,
+            "text": self.render(article),
+            "parse_mode": "HTML",
+            "disable_web_page_preview": "false",
+        }
         try:
             response = httpx.post(url, data=payload, timeout=self.timeout)
             response.raise_for_status()

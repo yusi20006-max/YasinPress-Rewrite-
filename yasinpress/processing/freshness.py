@@ -8,11 +8,8 @@ def is_fresh(
     *,
     now: datetime | None = None,
     max_age: timedelta = timedelta(hours=12),
-    is_breaking: bool = False,
-    breaking_max_age: timedelta = timedelta(hours=24),
-    allow_breaking_exemption: bool = True,
 ) -> bool:
-    """Return True when an article timestamp is within the allowed age window."""
+    """Return True when an article is within the normal publication age window."""
     if published_at is None:
         return False
 
