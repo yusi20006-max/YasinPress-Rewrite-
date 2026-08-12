@@ -14,14 +14,22 @@ _MEDIUM = ("مهم", "هشدار", "بحران", "تحریم", "انتخابات
 
 
 def calculate_priority(title: str, content: str = "") -> PriorityResult:
+    """Return the canonical queue priority contract.
+
+    Queue consumers use four ordered levels: breaking, urgent, important, normal.
+    ``score`` remains deterministic and bounded for metrics/debugging.
+    """
     text = f"{title} {content}".casefold()
-    high = sum(term.casefold() in text for term in _HIGH)
-    medium = sum(term.casefold() in text for term in _MEDIUM)
-    score = min(100, high * 60 + min(medium, 2) * 10)
-    if high > 0 or score >= 40:
-        level = "high"
-    elif score >= 20:
-        level = "medium"
+    high_hits = sum(term.casefold() in text for term in _HIGH)
+    medium_hits = sum(term.casefold() in text for term in _MEDIUM)
+
+    score = min(100, high_hits * 60 + min(medium_hits, 2) * 10)
+    if "breaking" in text or high_hits >= 2:
+        level = "breaking"
+    elif high_hits == 1:
+        level = "urgent"
+    elif medium_hits > 0:
+        level = "important"
     else:
         level = "normal"
     return PriorityResult(score=score, level=level)
