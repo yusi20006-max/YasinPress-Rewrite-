@@ -59,7 +59,6 @@ class SQLitePublicationQueueEngine:
         self.db.commit()
 
     def enqueue(self, job: PublicationJob) -> None:
-        """Persist a publication job idempotently."""
         self.db.execute(
             """INSERT OR IGNORE INTO publication_queue
                (id, article_id, destination, status, priority, priority_level, source,
@@ -76,7 +75,6 @@ class SQLitePublicationQueueEngine:
         self.db.commit()
 
     def add_job(self, job: PublicationJob) -> None:
-        """Compatibility alias used by the application composition root."""
         self.enqueue(job)
 
     def exists(self, job_id: str) -> bool:
@@ -133,49 +131,62 @@ class SQLitePublicationQueueEngine:
     def claim_next(self, now: datetime | None = None) -> PublicationJob | None:
         """Atomically reserve the next fair job without exceeding rate limits."""
         current = _utc(now)
-        self.recover_expired_leases(current)
-        successes = self._recent_successes(current)
-        reserved = self._reserved(current)
-        if len(successes) + len(reserved) >= self.config.global_limit:
-            return None
-
-        source_successes: dict[str, int] = {}
-        source_reserved: dict[str, int] = {}
-        for row in successes:
-            source_successes[row["source"]] = source_successes.get(row["source"], 0) + 1
-        for row in reserved:
-            source_reserved[row["source"]] = source_reserved.get(row["source"], 0) + 1
-
-        rows = self.db.execute(
-            """SELECT * FROM publication_queue
-               WHERE status IN ('pending','retrying')
-                 AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
-               ORDER BY priority DESC, created_at ASC, id ASC""",
-            (current.isoformat(),),
-        ).fetchall()
-        if not rows:
-            return None
-
-        top_priority = rows[0]["priority"]
-        candidates = [r for r in rows if r["priority"] == top_priority]
-        order = self._fair_source_order(r["source"] for r in candidates)
-        by_source: dict[str, list[sqlite3.Row]] = {source: [] for source in order}
-        for row in candidates:
-            by_source.setdefault(row["source"], []).append(row)
-
-        selected: sqlite3.Row | None = None
-        for source in order:
-            if source_successes.get(source, 0) + source_reserved.get(source, 0) >= self.config.source_limit:
-                continue
-            if by_source.get(source):
-                selected = by_source[source][0]
-                break
-        if selected is None:
-            return None
-
-        lease_until = current + self.config.lease
         self.db.execute("BEGIN IMMEDIATE")
         try:
+            # Recovery and capacity accounting happen under the same write lock as
+            # the claim. This prevents two workers from both observing spare capacity
+            # and collectively exceeding the global/per-source limits.
+            self.db.execute(
+                """UPDATE publication_queue
+                   SET status=CASE WHEN attempts >= max_attempts THEN 'dead_letter' ELSE 'retrying' END,
+                       next_attempt_at=CASE WHEN attempts >= max_attempts THEN NULL ELSE ? END,
+                       lease_expires_at=NULL
+                   WHERE status='processing' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?""",
+                (current.isoformat(), current.isoformat()),
+            )
+            successes = self._recent_successes(current)
+            reserved = self._reserved(current)
+            if len(successes) + len(reserved) >= self.config.global_limit:
+                self.db.rollback()
+                return None
+
+            source_successes: dict[str, int] = {}
+            source_reserved: dict[str, int] = {}
+            for row in successes:
+                source_successes[row["source"]] = source_successes.get(row["source"], 0) + 1
+            for row in reserved:
+                source_reserved[row["source"]] = source_reserved.get(row["source"], 0) + 1
+
+            rows = self.db.execute(
+                """SELECT * FROM publication_queue
+                   WHERE status IN ('pending','retrying')
+                     AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+                   ORDER BY priority DESC, created_at ASC, id ASC""",
+                (current.isoformat(),),
+            ).fetchall()
+            if not rows:
+                self.db.rollback()
+                return None
+
+            top_priority = rows[0]["priority"]
+            candidates = [r for r in rows if r["priority"] == top_priority]
+            order = self._fair_source_order(r["source"] for r in candidates)
+            by_source: dict[str, list[sqlite3.Row]] = {source: [] for source in order}
+            for row in candidates:
+                by_source.setdefault(row["source"], []).append(row)
+
+            selected: sqlite3.Row | None = None
+            for source in order:
+                if source_successes.get(source, 0) + source_reserved.get(source, 0) >= self.config.source_limit:
+                    continue
+                if by_source.get(source):
+                    selected = by_source[source][0]
+                    break
+            if selected is None:
+                self.db.rollback()
+                return None
+
+            lease_until = current + self.config.lease
             changed = self.db.execute(
                 """UPDATE publication_queue SET status='processing', attempts=attempts+1,
                    lease_expires_at=? WHERE id=? AND status IN ('pending','retrying')""",
@@ -248,7 +259,6 @@ class SQLitePublicationQueueEngine:
 
     def run_once(self, publishers: dict[str, Publisher], articles: ArticleStore,
                  *, now: datetime | None = None) -> PublishResult | None:
-        """Claim and execute one job; publication happens outside the fetch loop."""
         job = self.claim_next(now)
         if job is None:
             return None
