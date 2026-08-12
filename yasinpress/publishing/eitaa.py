@@ -36,10 +36,12 @@ class EitaaPublisher(Publisher):
 
     def render(self, article: Article) -> str:
         source = escape(self._source_label(article))
+        source_url = escape(article.url, quote=True)
         breaking = detect_breaking(article.title, article.content).is_breaking
         ai_marker = "🤖 " if article.ai_modified else ""
         breaking_marker = "🚨 <b>خبر فوری</b>\n\n" if breaking else ""
-        return f'{breaking_marker}{ai_marker}<b>{escape(article.title)}</b>\n\n{escape(article.content)}\n\nمنبع: {source}'
+        source_markup = f'<a href="{source_url}">{source}</a>'
+        return f'{breaking_marker}{ai_marker}<b>{escape(article.title)}</b>\n\n{escape(article.content)}\n\nمنبع: {source_markup}'
 
     def publish(self, article: Article) -> PublishResult:
         url = f"{self.api_base}/{self.token}/sendMessage"
