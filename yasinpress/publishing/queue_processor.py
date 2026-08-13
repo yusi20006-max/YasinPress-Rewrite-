@@ -177,7 +177,7 @@ class PublicationQueueProcessor:
                 return []
 
             (
-                recent_successes,
+                _recent_successes,
                 published_keys,
                 published_article_ids,
                 source_counts,

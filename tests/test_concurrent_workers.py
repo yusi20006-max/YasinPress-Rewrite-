@@ -1,13 +1,11 @@
 import threading
 import time
-import sqlite3
 from datetime import UTC, datetime, timedelta
-import pytest
 
 from yasinpress.database.models import Article, PublicationJob
 from yasinpress.database.sqlite import SQLiteRepositories
 from yasinpress.publishing import PublishResult
-from yasinpress.publishing.queue import SQLitePublicationQueueEngine, QueueConfig
+from yasinpress.publishing.queue import QueueConfig, SQLitePublicationQueueEngine
 from yasinpress.publishing.queue_processor import PublicationQueueProcessor
 
 
@@ -118,7 +116,7 @@ def test_concurrent_workers_respect_global_unique_article_cap(tmp_path):
         t.join()
 
     assert not errors, f"Encountered worker errors: {errors}"
-    unique_articles = set(art_id for art_id, _ in shared_published)
+    unique_articles = {art_id for art_id, _ in shared_published}
     assert len(unique_articles) <= 30
 
 
@@ -151,7 +149,7 @@ def test_concurrent_workers_respect_source_unique_article_cap(tmp_path):
         t.join()
 
     assert not errors, f"Encountered worker errors: {errors}"
-    unique_articles = set(art_id for art_id, _ in shared_published)
+    unique_articles = {art_id for art_id, _ in shared_published}
     assert len(unique_articles) <= 5
 
 
