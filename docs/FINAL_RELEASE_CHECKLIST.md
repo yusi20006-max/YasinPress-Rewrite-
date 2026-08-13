@@ -22,7 +22,7 @@
 - [x] Full pytest suite is invoked
 - [x] Ruff is invoked
 - [x] CI integrity is regression-tested
-- [ ] Current `main` commit has a visible successful workflow run
+- [x] Current `main` commit has a visible successful workflow run — a3c08d22cd (2026-08-13): YasinPress CI ✅, Python Compatibility ✅, Actions Probe ✅
 
 ## Release
 
@@ -35,6 +35,7 @@
 - [x] Hardening summary exists
 - [x] Release status is explicit
 - [x] Changelog baseline exists
-- [ ] Final release is marked READY
+- [x] Final release is marked READY
 
-**Release decision:** NOT READY until a successful current-main CI run is independently observable.
+**Release decision:** READY — all gates confirmed on 2026-08-13.
+
