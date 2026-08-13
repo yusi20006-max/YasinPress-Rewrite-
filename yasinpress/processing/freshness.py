@@ -9,10 +9,16 @@ def is_fresh(
     now: datetime | None = None,
     max_age: timedelta = timedelta(hours=12),
     is_breaking: bool = False,
-    allow_breaking_exemption: bool = True,
+    allow_breaking_exemption: bool = False,
     breaking_max_age: timedelta = timedelta(hours=24),
 ) -> bool:
-    """Return True when an article is within the normal publication age window."""
+    """Return True only when an article is within the configured publication age window.
+
+    The production contract is strict: articles older than ``max_age`` are not
+    publishable, including breaking articles. The legacy breaking-exemption
+    parameters remain accepted for API compatibility but are intentionally
+    ignored so callers cannot bypass the freshness contract.
+    """
     if published_at is None:
         return False
 
@@ -25,8 +31,4 @@ def is_fresh(
     if published_at > current:
         return True
 
-    effective_max_age = max_age
-    if is_breaking and allow_breaking_exemption:
-        effective_max_age = breaking_max_age
-
-    return current - published_at <= effective_max_age
+    return current - published_at <= max_age
