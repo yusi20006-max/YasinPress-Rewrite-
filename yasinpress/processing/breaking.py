@@ -13,13 +13,6 @@ class BreakingResult:
 
 
 # Explicit newsroom signals. A priority score or urgency wording alone is not enough.
-_EXPLICIT_BREAKING = (
-    "خبر فوری",
-    "فوری",
-    "لحظاتی پیش",
-    "breaking",
-    "urgent",
-)
 _SEVERE_EVENTS = (
     "زلزله",
     "انفجار",
@@ -54,7 +47,6 @@ def detect_breaking(
     """Detect breaking news from title severity and recency."""
     result = calculate_priority(title, content)
     title_text = title.casefold()
-    explicit = any(term.casefold() in title_text for term in _EXPLICIT_BREAKING)
     severe = any(term.casefold() in title_text for term in _SEVERE_EVENTS)
     age_hours = _age_hours(published_at)
     recent = age_hours is not None and age_hours <= 12
