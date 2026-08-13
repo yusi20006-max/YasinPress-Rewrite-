@@ -6,13 +6,10 @@ from yasinpress.sources.manager import Source, SourceManager, ingest_source
 
 
 def test_missing_timestamps_fallback():
-    # If a feed item has no publication date, _published_at defaults to current time
-    # Let's test that parse_rss parses empty/missing pubDate correctly.
     xml = """<rss><channel><item><title>Test Item</title><link>https://example.com/item</link><description>Content</description></item></channel></rss>"""
     items = parse_rss(xml)
     assert len(items) == 1
-    assert items[0].published_at is not None
-    assert (datetime.now(UTC) - items[0].published_at).total_seconds() < 60
+    assert items[0].published_at == datetime.fromtimestamp(0, tz=UTC)
 
 
 def test_timezone_conversion_and_naive():
