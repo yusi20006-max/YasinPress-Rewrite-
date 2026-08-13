@@ -20,8 +20,8 @@ class FeedItem:
 
 
 def _published_at(item: ET.Element) -> datetime:
-    """Return the RSS publication time, or the Unix epoch when unavailable."""
-    raw = (item.findtext("pubDate") or item.findtext("published") or "").strip()
+    """Return the feed publication time, or the Unix epoch when unavailable."""
+    raw = (item.findtext("pubDate") or item.findtext("published") or item.findtext("updated") or "").strip()
     if raw:
         try:
             parsed = email.utils.parsedate_to_datetime(raw)
@@ -32,20 +32,32 @@ def _published_at(item: ET.Element) -> datetime:
 
 
 def parse_rss(xml_text: str) -> list[FeedItem]:
-    """Parse RSS XML using the standard library."""
+    """Parse RSS or Atom XML using the standard library."""
     root = ET.fromstring(xml_text)
     items: list[FeedItem] = []
 
     namespaces = {"media": "http://search.yahoo.com/mrss/", "atom": "http://www.w3.org/2005/Atom"}
+    rss_items = root.findall(".//item")
+    atom_entries = root.findall(".//{http://www.w3.org/2005/Atom}entry")
 
-    for item in root.findall(".//item"):
-        title = item.findtext("title", "").strip()
-        url = item.findtext("link", "").strip()
-        content = (
-            item.findtext("description")
-            or item.findtext("{http://www.w3.org/2005/Atom}summary")
-            or ""
-        ).strip()
+    for item in [*rss_items, *atom_entries]:
+        is_atom = item.tag == "{http://www.w3.org/2005/Atom}entry"
+        title = (item.findtext("{http://www.w3.org/2005/Atom}title") if is_atom else item.findtext("title", "")) or ""
+        if is_atom:
+            link_element = item.find("{http://www.w3.org/2005/Atom}link")
+            url = link_element.get("href", "") if link_element is not None else ""
+            content = (
+                item.findtext("{http://www.w3.org/2005/Atom}content")
+                or item.findtext("{http://www.w3.org/2005/Atom}summary")
+                or ""
+            )
+        else:
+            url = item.findtext("link", "")
+            content = item.findtext("description") or ""
+
+        title = title.strip()
+        url = url.strip()
+        content = content.strip()
 
         enclosure = item.find("enclosure")
         media_url = None
