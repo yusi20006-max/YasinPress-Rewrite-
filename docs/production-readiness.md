@@ -17,8 +17,8 @@ Status: Release gate
 
 - [ ] Multi-source RSS ingestion
 - [ ] Source health isolation/recovery
-- [ ] 12-hour freshness enforcement
-- [ ] Breaking/urgent exception
+- [ ] 12-hour freshness enforcement for all articles, including breaking news
+- [ ] Breaking/urgent classification without a freshness exemption
 - [ ] Cross-source deduplication
 - [ ] Event/update grouping
 - [ ] Immutable News ID
