@@ -24,4 +24,4 @@ def test_missing_timestamp_is_not_fresh():
 
 def test_naive_timestamp_is_treated_as_utc():
     now = datetime(2026, 1, 2, 12, tzinfo=UTC)
-    assert is_fresh(datetime(2026, 1, 2, 11), now=now)  # noqa: DTZ001 - intentional naive timestamp contract
+    assert is_fresh(datetime(2026, 1, 2, 11), now=now)

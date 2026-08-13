@@ -36,7 +36,7 @@ class SafeAIEnricher:
                     metadata=result.metadata,
                 )
             return result
-        except Exception as exc:  # noqa: BLE001 - provider boundary is intentionally non-fatal
+        except Exception as exc:
             return AIResult(
                 title=article.title,
                 content=article.content,

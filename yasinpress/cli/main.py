@@ -70,7 +70,7 @@ def _startup_feed_setup() -> None:
 
     try:
         feeds = active_feeds()
-    except Exception as exc:  # noqa: BLE001 - active_feeds is a threadpool boundary that could throw any network/parsing exception
+    except Exception as exc:
         print(f"RSS discovery failed: {exc}")
         return
 

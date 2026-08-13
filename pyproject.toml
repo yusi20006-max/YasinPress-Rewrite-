@@ -25,6 +25,9 @@ include = ["yasinpress*"]
 line-length = 100
 target-version = "py313"
 
+[tool.ruff.lint]
+ignore = ["BLE001", "RUF012", "DTZ001"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

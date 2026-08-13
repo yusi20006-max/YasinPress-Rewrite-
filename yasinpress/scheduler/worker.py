@@ -52,7 +52,7 @@ class Worker:
             lifecycle.attempts += 1
             try:
                 queued.task()
-            except Exception as exc:  # noqa: BLE001 - worker boundary records and retries task failures
+            except Exception as exc:
                 lifecycle.error = str(exc)
                 if attempt + 1 < self.retry.attempts:
                     import time
