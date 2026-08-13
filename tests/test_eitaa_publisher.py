@@ -1,30 +1,46 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from yasinpress.database.models import Article
 from yasinpress.publishing.eitaa import EitaaPublisher
 
 
-def article(*, ai_modified: bool = False) -> Article:
+def article(*, ai_modified: bool = False, title: str = "خبر آزمایشی", content: str = "متن خبر") -> Article:
     return Article(
         id="YP-000001",
-        title="خبر آزمایشی",
+        title=title,
         url="https://example.com/news/1",
-        content="متن خبر",
+        content=content,
         source="example.com",
-        published_at=datetime.now(UTC),
+        published_at=datetime.now(UTC) - timedelta(minutes=10),
         ai_modified=ai_modified,
     )
 
 
-def test_render_contains_clickable_source_link():
+def test_render_uses_plain_source_label_without_url_or_link_markup():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article())
-    assert 'href="https://example.com/news/1"' in rendered
-    assert "example.com" in rendered
+    assert rendered == "<b>خبر آزمایشی</b>\n\nمتن خبر\n\nمنبع: example.com"
+    assert "https://" not in rendered
+    assert "<a " not in rendered
     assert "🤖" not in rendered
 
 
 def test_render_marks_only_ai_modified_articles():
     publisher = EitaaPublisher(token="token", channel="channel")
-    assert "🤖" in publisher.render(article(ai_modified=True))
+    assert "🤖 <b>خبر آزمایشی</b>" in publisher.render(article(ai_modified=True))
     assert "🤖" not in publisher.render(article(ai_modified=False))
+
+
+def test_render_uses_breaking_header_for_fresh_severe_news():
+    publisher = EitaaPublisher(token="token", channel="channel")
+    rendered = publisher.render(article(title="فوری: زلزله شدید"))
+    assert rendered == "🚨 <b>خبر فوری</b>\n\n<b>فوری: زلزله شدید</b>\n\nمتن خبر\n\nمنبع: example.com"
+    assert "https://" not in rendered
+    assert "<a " not in rendered
+
+
+def test_render_escapes_article_content():
+    publisher = EitaaPublisher(token="token", channel="channel")
+    rendered = publisher.render(article(title="A < B", content="x > y & z"))
+    assert "<b>A &lt; B</b>" in rendered
+    assert "x &gt; y &amp; z" in rendered
