@@ -53,8 +53,11 @@ class ProcessingService:
         )
         self.history = history
         self.max_age = timedelta(hours=max_article_age_hours)
-        self.breaking_max_age = timedelta(hours=breaking_max_article_age_hours)
-        self.allow_breaking_exemption = allow_breaking_exemption
+        # Breaking news follows the same 12-hour freshness contract. Keep the
+        # legacy constructor arguments for compatibility, but do not allow
+        # them to create a freshness exemption.
+        self.breaking_max_age = self.max_age
+        self.allow_breaking_exemption = False
         self.max_publications_per_hour = max_publications_per_hour
 
     def _enrich(self, article: Article) -> Article:
@@ -130,9 +133,14 @@ class ProcessingService:
         from yasinpress.processing.breaking import detect_breaking
 
         for article in articles:
-            breaking_res = detect_breaking(article.title, article.content)
-            limit = self.breaking_max_age if breaking_res.is_breaking and self.allow_breaking_exemption else self.max_age
-            cutoff = now - limit
+            # Breaking status is evaluated against the article publication time,
+            # but it never changes the 12-hour freshness boundary.
+            detect_breaking(
+                article.title,
+                article.content,
+                published_at=article.published_at,
+            )
+            cutoff = now - self.max_age
             pub = article.published_at
             if pub.tzinfo is None:
                 pub = pub.replace(tzinfo=UTC)
@@ -156,7 +164,11 @@ class ProcessingService:
 
             queued_jobs = 0
             for article in undelivered:
-                breaking_res = detect_breaking(article.title, article.content)
+                breaking_res = detect_breaking(
+                    article.title,
+                    article.content,
+                    published_at=article.published_at,
+                )
                 priority_res = calculate_priority(article.title, article.content)
                 if breaking_res.is_breaking:
                     level, score = "breaking", 40
