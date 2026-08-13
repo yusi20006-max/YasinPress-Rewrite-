@@ -63,22 +63,30 @@ class ProcessingService:
         if hasattr(self.ai, "enrich"):
             result = self.ai.enrich(article)
             if getattr(result, "success", False):
-                ai_state = "rewritten"
-                if result.title == article.title and result.content == article.content:
-                    ai_state = "fallback"
+                title = result.title or article.title
+                content = result.content or article.content
+                metadata = dict(article.source_metadata)
+                metadata.update(getattr(result, "metadata", {}) or {})
+                metadata["ai_provider"] = getattr(result, "provider", None)
+                metadata["ai_summary"] = getattr(result, "summary", None)
+                metadata["ai_priority"] = getattr(result, "priority", None)
+                metadata["ai_breaking"] = getattr(result, "breaking", False)
                 return Article(
-                    id=article.id, title=result.title, url=article.url, content=result.content,
-                    source=article.source, published_at=article.published_at, category=article.category,
+                    id=article.id, title=title, url=article.url, content=content,
+                    source=article.source, published_at=article.published_at,
+                    category=getattr(result, "category", None) or article.category,
                     event_id=article.event_id, received_at=article.received_at,
-                    lifecycle_state=article.lifecycle_state, ai_state=ai_state, ai_error=None,
-                    source_metadata=article.source_metadata,
+                    lifecycle_state="processed", ai_state="rewritten", ai_error=None,
+                    ai_modified=title != article.title or content != article.content,
+                    source_metadata=metadata,
                 )
             return Article(
                 id=article.id, title=article.title, url=article.url, content=article.content,
                 source=article.source, published_at=article.published_at, category=article.category,
                 event_id=article.event_id, received_at=article.received_at,
-                lifecycle_state=article.lifecycle_state, ai_state="failed",
-                ai_error=getattr(result, "error", "AI failed"), source_metadata=article.source_metadata,
+                lifecycle_state="processed", ai_state="fallback_original",
+                ai_error=getattr(result, "error", "AI failed"), ai_modified=False,
+                source_metadata=dict(article.source_metadata),
             )
         rewrite = getattr(self.ai, "rewrite", None)
         if rewrite is not None:
@@ -87,8 +95,9 @@ class ProcessingService:
                 id=article.id, title=article.title, url=article.url, content=content,
                 source=article.source, published_at=article.published_at, category=article.category,
                 event_id=article.event_id, received_at=article.received_at,
-                lifecycle_state=article.lifecycle_state, ai_state="rewritten", ai_error=None,
-                source_metadata=article.source_metadata,
+                lifecycle_state="processed", ai_state="rewritten", ai_error=None,
+                ai_modified=content != article.content,
+                source_metadata=dict(article.source_metadata),
             )
         return article
 
@@ -146,7 +155,6 @@ class ProcessingService:
         duplicate_count = len(candidates) - len(undelivered)
 
         if self.publication_queue is not None:
-            from yasinpress.processing.breaking import detect_breaking
             from yasinpress.processing.priority import calculate_priority
 
             max_att = 3
@@ -160,9 +168,9 @@ class ProcessingService:
                 priority_res = calculate_priority(article.title, article.content)
                 if breaking_res.is_breaking:
                     level, score = "breaking", 40
-                elif priority_res.level == "high":
+                elif priority_res.level == "urgent":
                     level, score = "urgent", 30
-                elif priority_res.level == "medium":
+                elif priority_res.level == "important":
                     level, score = "important", 20
                 else:
                     level, score = "normal", 10
