@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from .priority import calculate_priority
 
@@ -51,7 +51,7 @@ def detect_breaking(
     *,
     published_at: datetime | None = None,
 ) -> BreakingResult:
-    """Detect breaking news using explicit signals, severity and recency.
+    """Detect breaking news from explicit urgency, severity and recency.
 
     Priority remains an input signal, but a priority score by itself cannot make
     an article breaking. The optional ``published_at`` keeps the public API
@@ -64,13 +64,7 @@ def detect_breaking(
     age_hours = _age_hours(published_at)
     recent = age_hours is not None and age_hours <= 12
 
-    # Explicit newsroom wording is sufficient when the item is fresh.
-    # A severe event needs both recency and a meaningful priority signal.
-    if explicit and recent:
-        is_breaking = True
-    elif severe and recent and result.score >= 60:
-        is_breaking = True
-    else:
-        is_breaking = False
-
+    # A real breaking item must be recent and severe. Explicit newsroom wording
+    # is a strong signal; without it, the event still needs a meaningful score.
+    is_breaking = recent and severe and (explicit or result.score >= 60)
     return BreakingResult(is_breaking=is_breaking, score=result.score)
