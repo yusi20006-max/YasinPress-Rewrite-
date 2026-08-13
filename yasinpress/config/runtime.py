@@ -4,11 +4,11 @@ import os
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True)
 class RuntimeConfig:
     database_path: str = "yasinpress.db"
-    worker_interval_seconds: float = 1.0
-    scheduler_interval_seconds: float = 600.0
+    worker_interval_seconds: float = 30.0
+    scheduler_interval_seconds: float = 60.0
     max_job_attempts: int = 3
     request_timeout_seconds: float = 20.0
     feed_urls: tuple[str, ...] = ()
@@ -35,16 +35,10 @@ class RuntimeConfig:
         feeds = tuple(url.strip() for url in raw_feeds.split(",") if url.strip())
         return cls(
             database_path=os.getenv("YASINPRESS_DATABASE", cls.database_path),
-            worker_interval_seconds=float(
-                os.getenv("YASINPRESS_WORKER_INTERVAL", cls.worker_interval_seconds)
-            ),
-            scheduler_interval_seconds=float(
-                os.getenv("YASINPRESS_SCHEDULER_INTERVAL", cls.scheduler_interval_seconds)
-            ),
+            worker_interval_seconds=float(os.getenv("YASINPRESS_WORKER_INTERVAL", cls.worker_interval_seconds)),
+            scheduler_interval_seconds=float(os.getenv("YASINPRESS_SCHEDULER_INTERVAL", cls.scheduler_interval_seconds)),
             max_job_attempts=int(os.getenv("YASINPRESS_MAX_JOB_ATTEMPTS", cls.max_job_attempts)),
-            request_timeout_seconds=float(
-                os.getenv("YASINPRESS_REQUEST_TIMEOUT", cls.request_timeout_seconds)
-            ),
+            request_timeout_seconds=float(os.getenv("YASINPRESS_REQUEST_TIMEOUT", cls.request_timeout_seconds)),
             feed_urls=feeds,
             feed_source=os.getenv("YASINPRESS_FEED_SOURCE", cls.feed_source),
             language=os.getenv("YASINPRESS_LANGUAGE", cls.language).strip() or cls.language,
@@ -86,8 +80,4 @@ class RuntimeConfig:
         if not self.pwa_output_path or not self.rss_output_path:
             raise ValueError("PWA and RSS output paths must not be empty")
         if bool(self.eitaa_token) != bool(self.eitaa_channel):
-            raise ValueError(
-                "YASINPRESS_EITAA_TOKEN and YASINPRESS_EITAA_CHANNEL must be set together"
-            )
-        if not self.eitaa_api_base:
-            raise ValueError("eitaa_api_base must not be empty")
+            raise ValueError("YASINPRESS_EITAA_TOKEN and YASINPRESS_EITAA_CHANNEL must be set together")
