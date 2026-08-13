@@ -57,7 +57,6 @@ def ingest_source(
 
     start_time = time.perf_counter()
     try:
-        # Resolve the fetcher call
         if hasattr(fetch_engine, "fetch"):
             payload = fetch_engine.fetch(source.url)
         elif callable(fetch_engine):
@@ -76,21 +75,23 @@ def ingest_source(
         if items:
             now = datetime.now(UTC)
             stale_threshold = timedelta(hours=stale_threshold_hours)
-            all_stale = True
+            valid_dates = []
             for item in items:
                 pub = item.published_at
                 if pub is None:
-                    all_stale = False
-                    break
+                    continue
                 if pub.tzinfo is None:
                     pub = pub.replace(tzinfo=UTC)
                 else:
                     pub = pub.astimezone(UTC)
-                if now - pub <= stale_threshold:
-                    all_stale = False
-                    break
+                # The parser uses Unix epoch for missing/invalid publication
+                # dates. Such items must not make an otherwise healthy source
+                # look stale; freshness filtering is handled by the pipeline.
+                if pub == datetime.fromtimestamp(0, tz=UTC):
+                    continue
+                valid_dates.append(pub)
 
-            if all_stale:
+            if valid_dates and all(now - pub > stale_threshold for pub in valid_dates):
                 source.stale_count += 1
                 source.status = "degraded"
             else:
@@ -101,7 +102,6 @@ def ingest_source(
             source.status = "degraded"
             source.stale_count += 1
 
-        # Populate source name and preserve media metadata
         return [
             FeedItem(
                 title=item.title,
@@ -124,7 +124,7 @@ def ingest_source(
 
         if source.consecutive_failures >= 3:
             source.status = "failed"
-            source.enabled = False  # temporarily degrade/disable
+            source.enabled = False
         else:
             source.status = "degraded"
 
