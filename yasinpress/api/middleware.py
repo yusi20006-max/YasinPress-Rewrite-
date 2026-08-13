@@ -11,5 +11,5 @@ def with_error_handling(handler: Handler) -> Response:
     """Convert unexpected exceptions into JSON-style responses."""
     try:
         return handler()
-    except Exception as exc:  # noqa: BLE001 - API boundary converts unexpected failures to responses
+    except Exception as exc:
         return Response(500, {"error": exc.__class__.__name__})

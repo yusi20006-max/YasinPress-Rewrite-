@@ -37,6 +37,8 @@ class ArticleRepository:
 
     def save(self, article: Article) -> None:
         """Insert or replace an article."""
+        import json
+        metadata_str = json.dumps(article.source_metadata if article.source_metadata is not None else {})
         self.connection.execute(
             """INSERT INTO articles(
                 id, title, url, content, source, published_at, category,
@@ -64,7 +66,7 @@ class ArticleRepository:
                 article.lifecycle_state,
                 article.ai_state,
                 article.ai_error,
-                article.source_metadata,
+                metadata_str,
             ),
         )
         self.connection.commit()

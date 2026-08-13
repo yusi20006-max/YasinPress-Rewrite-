@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Iterable
 from datetime import UTC, datetime
@@ -29,6 +30,7 @@ class SQLiteArticleRepository:
         self.connection.commit()
 
     def save(self, article: Article) -> None:
+        metadata_str = json.dumps(article.source_metadata if article.source_metadata is not None else {})
         self.connection.execute(
             """INSERT INTO articles(id,title,url,content,source,published_at,category,event_id,received_at,lifecycle_state,ai_state,ai_error,source_metadata)
                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
@@ -39,7 +41,7 @@ class SQLiteArticleRepository:
             (article.id, article.title, article.url, article.content, article.source,
              article.published_at.isoformat(), article.category, article.event_id,
              article.received_at.isoformat(), article.lifecycle_state, article.ai_state,
-             article.ai_error, article.source_metadata),
+             article.ai_error, metadata_str),
         )
         self.connection.commit()
 
@@ -65,11 +67,18 @@ class SQLiteArticleRepository:
                 return default
             parsed = datetime.fromisoformat(value)
             return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+        meta_val = row["source_metadata"]
+        try:
+            source_meta = json.loads(meta_val) if meta_val else {}
+        except Exception:
+            source_meta = {}
+
         return Article(
             id=row["id"], title=row["title"], url=row["url"], content=row["content"], source=row["source"],
             published_at=dt("published_at", datetime.now(UTC)), category=row["category"], event_id=row["event_id"],
             received_at=dt("received_at", datetime.now(UTC)), lifecycle_state=row["lifecycle_state"] or "fetched",
-            ai_state=row["ai_state"] or "none", ai_error=row["ai_error"], source_metadata=row["source_metadata"],
+            ai_state=row["ai_state"] or "none", ai_error=row["ai_error"], source_metadata=source_meta,
         )
 
     def close(self) -> None:

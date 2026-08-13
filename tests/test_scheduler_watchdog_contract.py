@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 from yasinpress.scheduler.watchdog import HealthState, Watchdog, WatchdogPolicy
 
+
 def test_scheduler_watchdog_recovers_stale_component() -> None:
     current = datetime(2026, 8, 12, 10, 0, tzinfo=UTC)
     watchdog = Watchdog(now=lambda: current, policy=WatchdogPolicy(stale_after=timedelta(seconds=30)))

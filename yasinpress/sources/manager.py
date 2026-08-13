@@ -115,7 +115,7 @@ def ingest_source(
             for item in items
         ]
 
-    except Exception:  # noqa: BLE001 - execution boundary keeps general exceptions isolated from other feeds
+    except Exception:
         elapsed = time.perf_counter() - start_time
         source.response_time = elapsed
         source.last_failure = datetime.now(UTC)

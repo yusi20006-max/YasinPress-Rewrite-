@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from urllib.parse import parse_qs, urlsplit
 
+
 @dataclass(frozen=True)
 class Request:
     method: str = "GET"

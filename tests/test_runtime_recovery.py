@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 
 from yasinpress.runtime import Runtime
 from yasinpress.watchdog import Watchdog

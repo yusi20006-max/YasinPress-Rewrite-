@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 
-from yasinpress.database.models import Article
 from yasinpress.ai.base import AIProvider, AIResult
+from yasinpress.database.models import Article
 
 
 @dataclass(frozen=True)

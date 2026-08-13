@@ -32,6 +32,7 @@ class FakeClient:
 
 def article() -> Article:
     return Article(
+        id="1",
         event_id="evt-ai",
         title="عنوان",
         content="متن خبر",

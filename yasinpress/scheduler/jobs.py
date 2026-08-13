@@ -42,13 +42,17 @@ class JobExecution:
     finished_at: datetime | None = None
     error: str | None = None
 
+    @property
+    def success(self) -> bool:
+        return self.status == JobStatus.SUCCEEDED
+
     def run(self, handler: Callable[[], object]) -> JobExecution:
         self.status = JobStatus.RUNNING
         self.attempts += 1
         self.started_at = datetime.now(UTC)
         try:
             handler()
-        except Exception as exc:  # noqa: BLE001 - execution boundary records task failures
+        except Exception as exc:
             self.status = JobStatus.FAILED
             self.error = str(exc)
         else:
@@ -71,7 +75,7 @@ class JobRunner:
         job.attempts += 1
         try:
             self.handler()
-        except Exception as exc:  # noqa: BLE001 - runner records arbitrary task failures
+        except Exception as exc:
             job.status = JobStatus.FAILED
             job.error = str(exc)
         else:

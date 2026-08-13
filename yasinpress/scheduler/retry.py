@@ -18,7 +18,7 @@ class RetryPolicy:
             try:
                 func()
                 return
-            except Exception as exc:  # noqa: BLE001 - retry boundary must capture task failures
+            except Exception as exc:
                 last_error = exc
                 time.sleep(self.delay * (2**attempt))
         if last_error:

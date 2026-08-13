@@ -1,8 +1,8 @@
-from yasinpress.ai.base import AIProvider, AIResult
-from yasinpress.ai.resilient import AIResiliencePolicy, ResilientAIProvider
-from yasinpress.database.models import Article
 from datetime import UTC, datetime
 
+from yasinpress.ai.base import AIProvider
+from yasinpress.ai.resilient import AIResiliencePolicy, ResilientAIProvider
+from yasinpress.database.models import Article
 
 ARTICLE = Article(
     id="YP-260101-000001",

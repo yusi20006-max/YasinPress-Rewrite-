@@ -54,7 +54,6 @@ class ArticleEnricher:
 
         title = result.title or article.title
         content = result.content or article.content
-        modified = title != article.title or content != article.content
         metadata = dict(article.source_metadata)
         metadata.update(result.metadata)
         metadata["ai_provider"] = result.provider
@@ -79,7 +78,7 @@ class ArticleEnricher:
             lifecycle_state="processed",
             ai_state="rewritten",
             ai_error=None,
-            ai_modified=modified,
+            ai_modified=True,
             source_metadata=metadata,
         )
         return EnrichmentResult(enriched, True, result.provider)

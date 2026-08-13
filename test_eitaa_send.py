@@ -26,7 +26,7 @@ def test_send():
         response.raise_for_status()
         print("✅ پیام با موفقیت ارسال شد!")
         print("پاسخ سرور:", response.json())
-    except Exception as exc:  # noqa: BLE001 - manual smoke test reports transport failures
+    except Exception as exc:
         print(f"❌ خطای ارسال: {exc}")
 
 

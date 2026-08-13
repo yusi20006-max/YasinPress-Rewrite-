@@ -8,7 +8,6 @@ from xml.etree.ElementTree import Element, QName, SubElement, parse, register_na
 from yasinpress.database.models import Article
 from yasinpress.publishing import Publisher, PublishResult
 
-
 ATOM_NS = "http://www.w3.org/2005/Atom"
 register_namespace("atom", ATOM_NS)
 
