@@ -20,7 +20,7 @@ class FeedItem:
 
 
 def _published_at(item: ET.Element) -> datetime:
-    """Return the RSS publication time, falling back to fetch time."""
+    """Return the RSS publication time, or the Unix epoch when unavailable."""
     raw = (item.findtext("pubDate") or item.findtext("published") or "").strip()
     if raw:
         try:
@@ -28,7 +28,7 @@ def _published_at(item: ET.Element) -> datetime:
             return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
         except (TypeError, ValueError, IndexError):
             pass
-    return datetime.now(UTC)
+    return datetime.fromtimestamp(0, tz=UTC)
 
 
 def parse_rss(xml_text: str) -> list[FeedItem]:
@@ -36,7 +36,6 @@ def parse_rss(xml_text: str) -> list[FeedItem]:
     root = ET.fromstring(xml_text)
     items: list[FeedItem] = []
 
-    # We can handle namespaces for media:content
     namespaces = {"media": "http://search.yahoo.com/mrss/", "atom": "http://www.w3.org/2005/Atom"}
 
     for item in root.findall(".//item"):
@@ -48,7 +47,6 @@ def parse_rss(xml_text: str) -> list[FeedItem]:
             or ""
         ).strip()
 
-        # Enclosure
         enclosure = item.find("enclosure")
         media_url = None
         media_type = None
@@ -56,7 +54,6 @@ def parse_rss(xml_text: str) -> list[FeedItem]:
             media_url = enclosure.get("url")
             media_type = enclosure.get("type")
 
-        # Media:content
         if not media_url:
             media_content = item.find("media:content", namespaces) or item.find(
                 ".//{http://search.yahoo.com/mrss/}content"
