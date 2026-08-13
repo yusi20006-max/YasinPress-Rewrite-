@@ -38,6 +38,16 @@ def test_pipeline_rejects_stale_article():
     assert ArticlePipeline(repo).process(item("خبر قدیمی", age_hours=48), source="test") is None
 
 
+def test_pipeline_rejects_breaking_article_older_than_12_hours():
+    repo = make_repo()
+    assert (
+        ArticlePipeline(repo).process(
+            item("فوری: زلزله شدید در تهران", age_hours=13), source="test"
+        )
+        is None
+    )
+
+
 def test_pipeline_rejects_duplicate_article():
     repo = make_repo()
     pipeline = ArticlePipeline(repo)
