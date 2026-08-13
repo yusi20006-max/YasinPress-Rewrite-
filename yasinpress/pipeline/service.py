@@ -39,7 +39,7 @@ class ProcessingService:
         max_article_age_hours: float = 12.0,
         breaking_max_article_age_hours: float = 24.0,
         allow_breaking_exemption: bool = True,
-        max_publications_per_hour: int = 10,
+        max_publications_per_hour: int = 30,
         publication_queue=None,
     ) -> None:
         self.ai = ai
@@ -133,8 +133,6 @@ class ProcessingService:
         from yasinpress.processing.breaking import detect_breaking
 
         for article in articles:
-            # Breaking status is evaluated against the article publication time,
-            # but it never changes the 12-hour freshness boundary.
             detect_breaking(
                 article.title,
                 article.content,
@@ -154,7 +152,6 @@ class ProcessingService:
         duplicate_count = len(candidates) - len(undelivered)
 
         if self.publication_queue is not None:
-            from yasinpress.processing.breaking import detect_breaking
             from yasinpress.processing.priority import calculate_priority
 
             max_att = 3
