@@ -14,7 +14,7 @@ from yasinpress.publishing.history import DeliveryRecord
 
 @dataclass(frozen=True)
 class QueueConfig:
-    global_limit: int = 10
+    global_limit: int = 30
     source_limit: int = 5
     lease: timedelta = timedelta(seconds=60)
     retry_base: timedelta = timedelta(seconds=2)
@@ -28,7 +28,6 @@ class SQLitePublicationQueueEngine:
         self.connection = connection
         self.config = config or QueueConfig()
 
-        # Instantiate SQLiteRepositories safely on the shared connection
         self.repositories = SQLiteRepositories.__new__(SQLiteRepositories)
         self.repositories.connection = connection
         from yasinpress.database.delivery import SQLiteDeliveryRepository
@@ -65,13 +64,11 @@ class SQLitePublicationQueueEngine:
             if r.success and r.created_at >= cutoff
         ]
 
-        # Get active processing jobs that are not expired
         processing_jobs = [
             j for j in self.repositories.publication_queue.get_all_jobs()
-            if j.status == 'processing' and (j.lease_expires_at is None or j.lease_expires_at >= now)
+            if j.status == "processing" and (j.lease_expires_at is None or j.lease_expires_at >= now)
         ]
 
-        # Calculate available global slots
         consumed_slots = len(recent_successes) + len(processing_jobs)
         available_slots = max(0, self.config.global_limit - consumed_slots)
         if available_slots <= 0:
@@ -105,7 +102,6 @@ class SQLitePublicationQueueEngine:
             sources = by_priority[priority]
             active_sources = list(sources)
             while active_sources:
-                progressed = False
                 for source in list(active_sources):
                     if source_counts[source] >= self.config.source_limit or not sources[source]:
                         active_sources.remove(source)
@@ -118,8 +114,7 @@ class SQLitePublicationQueueEngine:
                     break
                 if selected_job is not None:
                     break
-                if not progressed:
-                    break
+                break
             if selected_job is not None:
                 break
 
