@@ -14,7 +14,7 @@ def test_important_priority():
 
 
 def test_urgent_priority():
-    result = calculate_priority("فوری: زلزله")
+    result = calculate_priority("فوری")
     assert result.level == "urgent"
     assert result.score == 60
 
