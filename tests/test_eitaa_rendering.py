@@ -11,7 +11,7 @@ def article(*, ai_modified: bool = False, title: str = "عنوان آزمایش�
         url="https://example.com/news/1",
         content="متن خبر",
         source="Example",
-        published_at=datetime(2026, 1, 1, tzinfo=UTC),
+        published_at=datetime.now(UTC),
         ai_modified=ai_modified,
     )
 
@@ -20,11 +20,12 @@ def publisher() -> EitaaPublisher:
     return EitaaPublisher(token="test-token", channel="test-channel")
 
 
-def test_source_is_clickable_html_link():
+def test_source_is_plain_domain_without_html_link():
     rendered = publisher().render(article())
-    assert 'href="https://example.com/news/1"' in rendered
-    assert ">example.com</a>" in rendered
-    assert "<a " in rendered
+    assert rendered.endswith("منبع: example.com")
+    assert "<a " not in rendered
+    assert "href=" not in rendered
+    assert "https://example.com/news/1" not in rendered
 
 
 def test_ai_marker_only_when_article_was_modified():
@@ -32,12 +33,12 @@ def test_ai_marker_only_when_article_was_modified():
     assert "🤖" in publisher().render(article(ai_modified=True))
 
 
-def test_breaking_marker_is_emitted_for_breaking_news():
+def test_breaking_marker_is_emitted_for_fresh_severe_news():
     rendered = publisher().render(
         article(title="فوری: زلزله شدید در تهران")
     )
-    assert "🚨" in rendered
-    assert "خبر فوری" in rendered
+    assert rendered.startswith("🚨 <b>خبر فوری</b>\n\n")
+    assert "<b>فوری: زلزله شدید در تهران</b>" in rendered
 
 
 def test_normal_article_has_no_breaking_marker():
@@ -49,7 +50,7 @@ def test_normal_article_has_no_breaking_marker():
 def test_raw_url_is_not_rendered_as_plain_text():
     rendered = publisher().render(article())
     assert "منبع: https://example.com/news/1" not in rendered
-    assert "منبع: <a href=\"https://example.com/news/1\">example.com</a>" in rendered
+    assert "منبع: example.com" in rendered
 
 
 def test_html_is_escaped():
