@@ -25,7 +25,7 @@ def item(title: str, *, age_hours: int = 1) -> FeedItem:
 
 def test_pipeline_processes_article_end_to_end():
     repo = make_repo()
-    result = ArticlePipeline(repo).process(item("فوری: خبر فناوری"), source="test")
+    result = ArticlePipeline(repo).process(item("فوری: زلزله شدید در تهران"), source="test")
     assert result is not None
     assert result.article.category == "technology"
     assert result.priority.level == "urgent"
