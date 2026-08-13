@@ -20,8 +20,13 @@ class FeedItem:
 
 
 def _published_at(item: ET.Element) -> datetime:
-    """Return the feed publication time, or the Unix epoch when unavailable."""
-    raw = (item.findtext("pubDate") or item.findtext("published") or item.findtext("updated") or "").strip()
+    """Return the feed publication time, or epoch when unavailable/invalid."""
+    raw = (
+        item.findtext("pubDate")
+        or item.findtext("published")
+        or item.findtext("updated")
+        or ""
+    ).strip()
     if raw:
         try:
             parsed = email.utils.parsedate_to_datetime(raw)
@@ -36,14 +41,14 @@ def parse_rss(xml_text: str) -> list[FeedItem]:
     root = ET.fromstring(xml_text)
     items: list[FeedItem] = []
 
-    namespaces = {"media": "http://search.yahoo.com/mrss/", "atom": "http://www.w3.org/2005/Atom"}
+    namespaces = {"media": "http://search.yahoo.com/mrss/"}
     rss_items = root.findall(".//item")
     atom_entries = root.findall(".//{http://www.w3.org/2005/Atom}entry")
 
     for item in [*rss_items, *atom_entries]:
         is_atom = item.tag == "{http://www.w3.org/2005/Atom}entry"
-        title = (item.findtext("{http://www.w3.org/2005/Atom}title") if is_atom else item.findtext("title", "")) or ""
         if is_atom:
+            title = item.findtext("{http://www.w3.org/2005/Atom}title", "")
             link_element = item.find("{http://www.w3.org/2005/Atom}link")
             url = link_element.get("href", "") if link_element is not None else ""
             content = (
@@ -52,6 +57,7 @@ def parse_rss(xml_text: str) -> list[FeedItem]:
                 or ""
             )
         else:
+            title = item.findtext("title", "")
             url = item.findtext("link", "")
             content = item.findtext("description") or ""
 
