@@ -13,6 +13,7 @@ class FeedFetchResult:
     url: str
     source: str
     items: tuple[FeedItem, ...]
+    error: str | None = None
 
 
 class FeedFetcher:
@@ -21,13 +22,21 @@ class FeedFetcher:
         self.timeout = timeout
 
     def fetch_url(self, url: str) -> FeedFetchResult:
-        payload = self.fetch(url, timeout=self.timeout)
         source = urlparse(url).hostname or url
-        items = tuple(
-            FeedItem(item.title, item.url, item.content, item.published_at, source)
-            for item in parse_rss(payload)
-        )
-        return FeedFetchResult(url, source, items)
+        try:
+            payload = self.fetch(url, timeout=self.timeout)
+            items = tuple(
+                FeedItem(item.title, item.url, item.content, item.published_at, source)
+                for item in parse_rss(payload)
+            )
+            return FeedFetchResult(url, source, items)
+        except Exception as exc:
+            return FeedFetchResult(url, source, (), f"{type(exc).__name__}: {exc}")
 
     def fetch_many(self, urls: tuple[str, ...]) -> tuple[FeedFetchResult, ...]:
+        """Fetch all configured sources independently.
+
+        A failing source is represented by a result with ``error`` populated;
+        it must not prevent healthy sources from being fetched.
+        """
         return tuple(self.fetch_url(url) for url in urls)
