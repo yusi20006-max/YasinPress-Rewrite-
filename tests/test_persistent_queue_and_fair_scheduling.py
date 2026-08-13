@@ -1,4 +1,3 @@
-import sqlite3
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -6,7 +5,6 @@ import pytest
 from yasinpress.database.models import Article, PublicationJob
 from yasinpress.database.sqlite import SQLiteRepositories
 from yasinpress.publishing import PublishResult
-from yasinpress.publishing.history import DeliveryRecord
 from yasinpress.publishing.queue_processor import PublicationQueueProcessor
 
 
@@ -53,7 +51,7 @@ def test_persistence_across_restart(tmp_path):
 
     # Session 1: Create and queue jobs
     repo1 = SQLiteRepositories(db_file)
-    art1 = create_test_article(repo1, "art1", "sourceA")
+    create_test_article(repo1, "art1", "sourceA")
     job = PublicationJob(
         id="art1:pwa",
         article_id="art1",

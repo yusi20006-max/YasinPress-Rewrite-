@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from yasinpress.ai.base import AIResult, AIProvider
+from yasinpress.ai.base import AIProvider, AIResult
 from yasinpress.ai.safe import SafeAIEnricher
 from yasinpress.database.models import Article
 from yasinpress.processing.enrichment import ArticleEnricher

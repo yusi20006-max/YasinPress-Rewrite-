@@ -1,5 +1,6 @@
 from yasinpress.api.pagination import CollectionPage, Page
 
+
 def test_page_normalizes_invalid_and_large_values() -> None:
     page = Page.from_query("-4", "1000")
     assert page.number == 1

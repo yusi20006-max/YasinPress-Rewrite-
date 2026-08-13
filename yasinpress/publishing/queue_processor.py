@@ -21,6 +21,8 @@ class PublicationQueueProcessor:
         self.base_backoff_seconds = base_backoff_seconds
 
     def recover_expired_leases(self, now: datetime) -> int:
+        if not hasattr(self.repositories, "publication_queue") or self.repositories.publication_queue is None:
+            return 0
         stale_jobs = self.repositories.publication_queue.get_stale_leased_jobs(now)
         recovered_count = 0
         for job in stale_jobs:
@@ -37,6 +39,8 @@ class PublicationQueueProcessor:
         if now.tzinfo is None:
             now = now.replace(tzinfo=UTC)
         self.recover_expired_leases(now)
+        if not hasattr(self.repositories, "publication_queue") or self.repositories.publication_queue is None:
+            return []
         eligible = self.repositories.publication_queue.get_eligible_jobs(now)
         if not eligible:
             return []

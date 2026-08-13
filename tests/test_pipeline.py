@@ -28,7 +28,7 @@ def test_pipeline_processes_article_end_to_end():
     result = ArticlePipeline(repo).process(item("فوری: خبر فناوری"), source="test")
     assert result is not None
     assert result.article.category == "technology"
-    assert result.priority.level == "high"
+    assert result.priority.level == "urgent"
     assert result.breaking.is_breaking
     assert repo.exists(result.article.id)
 

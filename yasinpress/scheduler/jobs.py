@@ -42,6 +42,10 @@ class JobExecution:
     finished_at: datetime | None = None
     error: str | None = None
 
+    @property
+    def success(self) -> bool:
+        return self.status == JobStatus.SUCCEEDED
+
     def run(self, handler: Callable[[], object]) -> JobExecution:
         self.status = JobStatus.RUNNING
         self.attempts += 1

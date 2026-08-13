@@ -13,4 +13,4 @@ class BreakingResult:
 
 def detect_breaking(title: str, content: str = "") -> BreakingResult:
     result = calculate_priority(title, content)
-    return BreakingResult(is_breaking=result.score >= 60, score=result.score)
+    return BreakingResult(is_breaking=result.score >= 70, score=result.score)

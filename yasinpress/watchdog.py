@@ -16,7 +16,9 @@ class WatchdogStatus:
 class Watchdog:
     """Runtime supervisor with explicit stale detection and recovery state."""
 
-    def __init__(self, stale_after: timedelta = timedelta(minutes=2)) -> None:
+    def __init__(self, stale_after: timedelta | float = timedelta(minutes=2)) -> None:
+        if isinstance(stale_after, (int, float)):
+            stale_after = timedelta(seconds=stale_after)
         if stale_after <= timedelta(0):
             raise ValueError("stale_after must be positive")
         self.stale_after = stale_after

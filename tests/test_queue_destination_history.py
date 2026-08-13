@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 
 
 def test_hourly_history_key_includes_destination():

@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from yasinpress.monitoring import RuntimeSnapshot, hourly_report, snapshot
+from yasinpress.monitoring import hourly_report, snapshot
 
 
 @dataclass(frozen=True)

@@ -3,6 +3,7 @@ from yasinpress.api.auth import TokenAuth
 from yasinpress.api.request import Request
 from yasinpress.api.responses import ok
 
+
 def test_request_parses_query_and_bearer_token() -> None:
     request = Request.from_target("/api/articles?page=2&source=bbc&source=irna", headers={"Authorization": "Bearer secret"})
     assert request.path == "/api/articles"

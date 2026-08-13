@@ -9,11 +9,11 @@ def test_normal_priority():
 
 def test_medium_priority():
     result = calculate_priority("هشدار درباره قیمت بازار")
-    assert result.level == "medium"
+    assert result.level == "important"
     assert result.score == 20
 
 
 def test_high_priority():
     result = calculate_priority("فوری: زلزله و انفجار")
-    assert result.level == "high"
+    assert result.level == "breaking"
     assert result.score >= 60

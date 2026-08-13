@@ -186,7 +186,7 @@ class ProcessingService:
 
             return ProcessingReport(
                 PipelineResult(len(articles), result.rejected, articles),
-                PublishReport(tuple()),
+                PublishReport(()),
                 old_count=old_count,
                 queued_count=queued_jobs,
                 duplicate_count=duplicate_count,

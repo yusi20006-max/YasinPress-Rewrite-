@@ -1,9 +1,10 @@
 """Bounded heartbeat supervision for long-running YasinPress components."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Callable
+
 
 class HealthState(StrEnum):
     HEALTHY = "healthy"

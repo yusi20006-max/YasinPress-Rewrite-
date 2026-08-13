@@ -99,7 +99,7 @@ def test_expired_lease_recovers_after_restart():
 
 def test_queue_persists_across_engine_restart():
     db = sqlite3.connect(":memory:")
-    now = datetime(2026, 1, 1, 12, tzinfo=UTC)
+    datetime(2026, 1, 1, 12, tzinfo=UTC)
     q1 = SQLitePublicationQueueEngine(db)
     q1.enqueue(make_job(1, "source"))
     q2 = SQLitePublicationQueueEngine(db)
