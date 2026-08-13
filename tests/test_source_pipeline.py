@@ -12,12 +12,10 @@ def test_missing_timestamps_fallback():
     items = parse_rss(xml)
     assert len(items) == 1
     assert items[0].published_at is not None
-    # Within 1 minute of now
     assert (datetime.now(UTC) - items[0].published_at).total_seconds() < 60
 
 
 def test_timezone_conversion_and_naive():
-    # Timezone conversion: pubDate with timezone offsets
     xml_tz = """<rss><channel><item>
         <title>TZ Item</title>
         <link>https://example.com/tz</link>
@@ -26,16 +24,12 @@ def test_timezone_conversion_and_naive():
     </item></channel></rss>"""
     items = parse_rss(xml_tz)
     assert len(items) == 1
-    # 14:30:00 +03:30 should be converted to 11:00:00 UTC
     assert items[0].published_at.tzinfo == UTC
     assert items[0].published_at == datetime(2026, 8, 11, 11, 0, 0, tzinfo=UTC)
 
 
 def test_stale_items_detection():
-    # A feed that only has items older than 24h is stale -> status "degraded", stale_count incremented
     source = Source("StaleSource", "https://example.com/stale")
-
-    # 25 hours ago pubDate
     old_time = (datetime.now(UTC) - timedelta(hours=25)).strftime("%a, %d %b %Y %H:%M:%S UTC")
     stale_xml = f"""<rss><channel><item>
         <title>Stale Item</title>
@@ -52,37 +46,30 @@ def test_stale_items_detection():
 
 
 def test_source_failure_and_recovery():
-    # Ingesting from a source that fails
     source = Source("FailSource", "https://example.com/fail")
 
     def failing_fetch(url):
         raise ValueError("Network Error")
 
-    # 1st failure
-    items = ingest_source(source, failing_fetch)
-    assert len(items) == 0
+    ingest_source(source, failing_fetch)
     assert source.status == "degraded"
     assert source.consecutive_failures == 1
     assert source.failure_count == 1
     assert source.enabled is True
 
-    # 2nd failure
     ingest_source(source, failing_fetch)
     assert source.status == "degraded"
     assert source.consecutive_failures == 2
     assert source.enabled is True
 
-    # 3rd failure -> disabled, failed
     ingest_source(source, failing_fetch)
     assert source.status == "failed"
     assert source.consecutive_failures == 3
     assert source.enabled is False
 
-    # Attempt ingest while disabled should return empty and do nothing
     items_disabled = ingest_source(source, failing_fetch)
     assert len(items_disabled) == 0
 
-    # Let's recover: manual override or fetch succeeds (if we temporarily set enabled = True to retry)
     source.enabled = True
     success_xml = """<rss><channel><item><title>Fresh</title><link>https://example.com/fresh</link><description>Content</description></item></channel></rss>"""
     items_recovered = ingest_source(source, lambda url: success_xml)
@@ -93,13 +80,11 @@ def test_source_failure_and_recovery():
 
 
 def test_multi_source_ingestion_independent_failure():
-    # If one source fails, other sources must still be processed (no global failure)
     source1 = Source("GoodSource", "https://example.com/good")
     source2 = Source("BadSource", "https://example.com/bad")
     source3 = Source("GoodSource2", "https://example.com/good2")
 
     manager = SourceManager([source1, source2, source3])
-
     good_xml = """<rss><channel><item><title>Fresh</title><link>https://example.com/fresh</link><description>Content</description></item></channel></rss>"""
 
     def multi_fetch(url):
@@ -109,30 +94,20 @@ def test_multi_source_ingestion_independent_failure():
 
     results = []
     for src in manager.enabled():
-        items = ingest_source(src, multi_fetch)
-        results.extend(items)
+        results.extend(ingest_source(src, multi_fetch))
 
-    assert len(results) == 2  # GoodSource and GoodSource2 succeeded
+    assert len(results) == 2
     assert source1.status == "healthy"
     assert source1.success_count == 1
-
     assert source2.status == "degraded"
     assert source2.failure_count == 1
-
     assert source3.status == "healthy"
     assert source3.success_count == 1
 
 
-def test_breaking_news_exemption():
-    # Test breaking/urgent exception logic
+def test_articles_older_than_twelve_hours_are_never_fresh_including_breaking():
     now = datetime(2026, 8, 11, 12, 0, tzinfo=UTC)
-
-    # Normal article older than 12h: rejected
-    assert not is_fresh(now - timedelta(hours=13), now=now, is_breaking=False)
-
-    # Breaking article older than 12h but <= 24h: accepted
-    assert is_fresh(now - timedelta(hours=13), now=now, is_breaking=True)
-    assert is_fresh(now - timedelta(hours=24), now=now, is_breaking=True)
-
-    # Breaking article > 24h: rejected
-    assert not is_fresh(now - timedelta(hours=25), now=now, is_breaking=True)
+    assert is_fresh(now - timedelta(hours=11, minutes=59), now=now)
+    assert is_fresh(now - timedelta(hours=12), now=now)
+    assert not is_fresh(now - timedelta(hours=13), now=now, is_breaking=True)
+    assert not is_fresh(now - timedelta(hours=24), now=now, is_breaking=True)
