@@ -36,36 +36,20 @@ def test_global_cap_counts_unique_articles_and_allows_destination_fanout() -> No
     try:
         now = datetime.now(UTC)
         publishers = [Publisher("eitaa"), Publisher("pwa"), Publisher("rss")]
-        for index in range(12):
+        for index in range(32):
             article_id = f"article-{index}"
-            repo.articles.save(
-                Article(
-                    id=article_id,
-                    title="خبر",
-                    url=f"https://example.com/{index}",
-                    content="متن",
-                    source=f"source-{index}",
-                    published_at=now,
-                )
-            )
+            repo.articles.save(Article(id=article_id, title="خبر", url=f"https://example.com/{index}", content="متن", source=f"source-{index}", published_at=now))
             for publisher in publishers:
                 add_job(repo, article_id, publisher.name, f"source-{index}")
 
-        processor = PublicationQueueProcessor(
-            repo, publishers, max_global_per_hour=10, max_source_per_hour=5
-        )
+        processor = PublicationQueueProcessor(repo, publishers, max_global_per_hour=30, max_source_per_hour=5)
         results = processor.process_cycle(now)
-
         successes = [result for result in results if result.success]
-        unique_articles = {
-            record.article_id
-            for record in repo.delivery_history.all()
-            if record.success
-        }
+        unique_articles = {record.article_id for record in repo.delivery_history.all() if record.success}
 
-        assert len(unique_articles) == 10
-        assert len(successes) == 30
-        assert all(publisher.calls == 10 for publisher in publishers)
+        assert len(unique_articles) == 30
+        assert len(successes) == 90
+        assert all(publisher.calls == 30 for publisher in publishers)
     finally:
         repo.close()
 
@@ -77,29 +61,13 @@ def test_per_source_cap_limits_each_source_to_five_unique_articles_per_hour() ->
         publisher = Publisher("eitaa")
         for index in range(8):
             article_id = f"article-{index}"
-            repo.articles.save(
-                Article(
-                    id=article_id,
-                    title="خبر",
-                    url=f"https://example.com/{index}",
-                    content="متن",
-                    source="bbc",
-                    published_at=now,
-                )
-            )
+            repo.articles.save(Article(id=article_id, title="خبر", url=f"https://example.com/{index}", content="متن", source="bbc", published_at=now))
             add_job(repo, article_id, "eitaa", "bbc")
 
-        processor = PublicationQueueProcessor(
-            repo, [publisher], max_global_per_hour=10, max_source_per_hour=5
-        )
+        processor = PublicationQueueProcessor(repo, [publisher], max_global_per_hour=30, max_source_per_hour=5)
         results = processor.process_cycle(now)
-
         successes = [result for result in results if result.success]
-        unique_source_articles = {
-            record.article_id
-            for record in repo.delivery_history.all()
-            if record.success
-        }
+        unique_source_articles = {record.article_id for record in repo.delivery_history.all() if record.success}
 
         assert len(successes) == 5
         assert len(unique_source_articles) == 5
@@ -114,41 +82,16 @@ def test_recently_published_article_can_finish_remaining_destination_fanout() ->
         now = datetime.now(UTC)
         publishers = [Publisher("eitaa"), Publisher("pwa"), Publisher("rss")]
         article_id = "article-existing"
-        repo.articles.save(
-            Article(
-                id=article_id,
-                title="خبر",
-                url="https://example.com/existing",
-                content="متن",
-                source="bbc",
-                published_at=now,
-            )
-        )
+        repo.articles.save(Article(id=article_id, title="خبر", url="https://example.com/existing", content="متن", source="bbc", published_at=now))
         add_job(repo, article_id, "eitaa", "bbc")
         add_job(repo, article_id, "pwa", "bbc")
         add_job(repo, article_id, "rss", "bbc")
+        repo.delivery_history.add(DeliveryRecord(article_id=article_id, destination="eitaa", success=True, attempts=1, external_id="eitaa:article-existing", created_at=now))
 
-        repo.delivery_history.add(
-            DeliveryRecord(
-                article_id=article_id,
-                destination="eitaa",
-                success=True,
-                attempts=1,
-                external_id="eitaa:article-existing",
-                created_at=now,
-            )
-        )
-
-        processor = PublicationQueueProcessor(
-            repo, publishers, max_global_per_hour=1, max_source_per_hour=1
-        )
+        processor = PublicationQueueProcessor(repo, publishers, max_global_per_hour=1, max_source_per_hour=1)
         results = processor.process_cycle(now)
 
         assert sum(result.success for result in results) == 2
-        assert {publisher.name: publisher.calls for publisher in publishers} == {
-            "eitaa": 0,
-            "pwa": 1,
-            "rss": 1,
-        }
+        assert {publisher.name: publisher.calls for publisher in publishers} == {"eitaa": 0, "pwa": 1, "rss": 1}
     finally:
         repo.close()
