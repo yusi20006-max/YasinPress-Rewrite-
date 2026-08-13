@@ -1,9 +1,9 @@
-from collections import Counter
 from datetime import UTC, datetime
 
 from yasinpress.database.models import Article, PublicationJob
 from yasinpress.database.sqlite import SQLiteRepositories
 from yasinpress.publishing import PublishResult
+from yasinpress.publishing.history import DeliveryRecord
 from yasinpress.publishing.queue_processor import PublicationQueueProcessor
 
 
@@ -17,11 +17,25 @@ class Publisher:
         return PublishResult(True, self.name, external_id=f"{self.name}:{article.id}")
 
 
-def test_global_cap_counts_publication_messages_not_unique_articles() -> None:
+def add_job(repo, article_id: str, destination: str, source: str, priority: int = 10) -> None:
+    repo.publication_queue.add_job(
+        PublicationJob(
+            f"{article_id}:{destination}",
+            article_id,
+            destination,
+            "pending",
+            priority,
+            "breaking" if priority == 40 else "normal",
+            source,
+        )
+    )
+
+
+def test_global_cap_counts_unique_articles_and_allows_destination_fanout() -> None:
     repo = SQLiteRepositories(":memory:")
     try:
         now = datetime.now(UTC)
-        publishers = [Publisher("eitaa")]
+        publishers = [Publisher("eitaa"), Publisher("pwa"), Publisher("rss")]
         for index in range(12):
             article_id = f"article-{index}"
             repo.articles.save(
@@ -34,34 +48,33 @@ def test_global_cap_counts_publication_messages_not_unique_articles() -> None:
                     published_at=now,
                 )
             )
-            repo.publication_queue.add_job(
-                PublicationJob(
-                    f"{article_id}:eitaa",
-                    article_id,
-                    "eitaa",
-                    "pending",
-                    10,
-                    "normal",
-                    f"source-{index}",
-                )
-            )
+            for publisher in publishers:
+                add_job(repo, article_id, publisher.name, f"source-{index}")
 
         processor = PublicationQueueProcessor(
             repo, publishers, max_global_per_hour=10, max_source_per_hour=5
         )
         results = processor.process_cycle(now)
 
-        assert sum(result.success for result in results) == 10
-        assert publishers[0].calls == 10
+        successes = [result for result in results if result.success]
+        unique_articles = {
+            record.article_id
+            for record in repo.delivery_history.all()
+            if record.success
+        }
+
+        assert len(unique_articles) == 10
+        assert len(successes) == 30
+        assert all(publisher.calls == 10 for publisher in publishers)
     finally:
         repo.close()
 
 
-def test_per_source_cap_limits_each_source_to_five_messages_per_hour() -> None:
+def test_per_source_cap_limits_each_source_to_five_unique_articles_per_hour() -> None:
     repo = SQLiteRepositories(":memory:")
     try:
         now = datetime.now(UTC)
-        publishers = [Publisher("eitaa")]
+        publisher = Publisher("eitaa")
         for index in range(8):
             article_id = f"article-{index}"
             repo.articles.save(
@@ -74,28 +87,68 @@ def test_per_source_cap_limits_each_source_to_five_messages_per_hour() -> None:
                     published_at=now,
                 )
             )
-            repo.publication_queue.add_job(
-                PublicationJob(
-                    f"{article_id}:eitaa",
-                    article_id,
-                    "eitaa",
-                    "pending",
-                    10,
-                    "normal",
-                    "bbc",
-                )
-            )
+            add_job(repo, article_id, "eitaa", "bbc")
 
         processor = PublicationQueueProcessor(
-            repo, publishers, max_global_per_hour=10, max_source_per_hour=5
+            repo, [publisher], max_global_per_hour=10, max_source_per_hour=5
         )
         results = processor.process_cycle(now)
 
-        assert sum(result.success for result in results) == 5
-        assert publishers[0].calls == 5
-        source_counts = Counter(
-            record.article_id for record in repo.delivery_history.all() if record.success
+        successes = [result for result in results if result.success]
+        unique_source_articles = {
+            record.article_id
+            for record in repo.delivery_history.all()
+            if record.success
+        }
+
+        assert len(successes) == 5
+        assert len(unique_source_articles) == 5
+        assert publisher.calls == 5
+    finally:
+        repo.close()
+
+
+def test_recently_published_article_can_finish_remaining_destination_fanout() -> None:
+    repo = SQLiteRepositories(":memory:")
+    try:
+        now = datetime.now(UTC)
+        publishers = [Publisher("eitaa"), Publisher("pwa"), Publisher("rss")]
+        article_id = "article-existing"
+        repo.articles.save(
+            Article(
+                id=article_id,
+                title="خبر",
+                url="https://example.com/existing",
+                content="متن",
+                source="bbc",
+                published_at=now,
+            )
         )
-        assert len(source_counts) == 5
+        add_job(repo, article_id, "eitaa", "bbc")
+        add_job(repo, article_id, "pwa", "bbc")
+        add_job(repo, article_id, "rss", "bbc")
+
+        repo.delivery_history.add(
+            DeliveryRecord(
+                article_id=article_id,
+                destination="eitaa",
+                success=True,
+                attempts=1,
+                external_id="eitaa:article-existing",
+                created_at=now,
+            )
+        )
+
+        processor = PublicationQueueProcessor(
+            repo, publishers, max_global_per_hour=1, max_source_per_hour=1
+        )
+        results = processor.process_cycle(now)
+
+        assert sum(result.success for result in results) == 2
+        assert {publisher.name: publisher.calls for publisher in publishers} == {
+            "eitaa": 0,
+            "pwa": 1,
+            "rss": 1,
+        }
     finally:
         repo.close()
