@@ -51,6 +51,21 @@ def test_headline_containing_quotation_marks():
     assert normalize_headline(headline_short) == headline_short
 
 
+def test_speaker_attribution_regression_cases():
+    """Regression tests to verify speaker attribution remains fully intact."""
+    # Case with 'گفت' (CodeRabbit finding)
+    headline_goft = "رئیس‌جمهور آمریکا گفت؛ «برنامه هسته‌ای ما صلح‌آمیز است»"
+    assert normalize_headline(headline_goft) == headline_goft
+
+    # Case with 'تصریح کرد'
+    headline_tasrih = "سخنگوی وزارت خارجه تصریح کرد؛ «مذاکرات ادامه خواهد یافت»"
+    assert normalize_headline(headline_tasrih) == headline_tasrih
+
+    # Case with English 'said'
+    headline_said = "The President of the United States said; \"Our nuclear program is peaceful\""
+    assert normalize_headline(headline_said) == headline_said
+
+
 def test_english_headline():
     """English headline with or without separator."""
     headline = "Major breakthrough in quantum computing"

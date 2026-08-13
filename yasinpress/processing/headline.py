@@ -1,5 +1,98 @@
 """Headline normalization logic."""
 
+import re
+
+
+def ends_with_speech_indicator(text: str) -> bool:
+    """Check if the text ends with a common Persian or English speech-action verb."""
+    speech_indicators = {
+        # Persian speech/statement verbs & phrases
+        "گفت",
+        "افزود",
+        "نوشت",
+        "پرسید",
+        "پاسخ داد",
+        "اعلام کرد",
+        "تاکید کرد",
+        "تصریح کرد",
+        "بیان کرد",
+        "ابراز داشت",
+        "خواستار شد",
+        "عنوان کرد",
+        "اظهار داشت",
+        "مطرح کرد",
+        "خبر داد",
+        "آورده است",
+        "توصیف کرد",
+        "یادآور شد",
+        "اعلام داشت",
+        "دانست",
+        "خواند",
+        "خواست",
+        "گفتند",
+        "افزودند",
+        "نوشتند",
+        "پرسیدند",
+        "اعلام کردند",
+        "تاکید کردند",
+        "تصریح کردند",
+        "خواستار شدند",
+        "اظهار داشتند",
+        "خبر دادند",
+        "توضیح داد",
+        "توضیح دادند",
+        "اشاره کرد",
+        "اشاره کردند",
+        "مدعی شد",
+        "مدعی شدند",
+        "اعلام نمود",
+        "اعلام نمودند",
+        "ابراز نمود",
+        "ابراز نمودند",
+        "ابراز کرد",
+        "ابراز کردند",
+        "خاطرنشان کرد",
+        "خاطرنشان کردند",
+        "متذکر شد",
+        "متذکر شدند",
+        "امیدواری کرد",
+        "امیدواری کردند",
+        # English speech verbs
+        "said",
+        "says",
+        "wrote",
+        "reports",
+        "stated",
+        "claims",
+        "adds",
+        "argues",
+        "warns",
+        "urges",
+        "asked",
+        "replied",
+        "commented",
+        "told",
+    }
+
+    # Normalize spacing and remove punctuation except letters/numbers and spaces
+    cleaned = re.sub(r"[^\w\s\u0600-\u06FF]", " ", text).strip()
+    words = cleaned.split()
+    if not words:
+        return False
+
+    # Check last word (case-insensitive for English)
+    last_word = words[-1].lower()
+    if last_word in speech_indicators:
+        return True
+
+    # Check last two words combined
+    if len(words) >= 2:
+        last_two = f"{words[-2]} {words[-1]}".lower()
+        if last_two in speech_indicators:
+            return True
+
+    return False
+
 
 def normalize_headline(title: str) -> str:
     """Normalize a headline to remove unwanted RSS subtitles, description quotes, or site suffixes."""
@@ -82,6 +175,11 @@ def normalize_headline(title: str) -> str:
                         break
 
                 if is_quoted and left:
+                    # Do not strip if the left part ends with a speech verb/phrase,
+                    # indicating a speaker attribution rather than a subtitle.
+                    if ends_with_speech_indicator(left):
+                        continue
+
                     # To avoid stripping quotes from legitimate speaker attributions (e.g. "بایدن؛ «...»")
                     # we only strip if the left part is long enough (at least 3 words and 10 characters).
                     words = left.split()
