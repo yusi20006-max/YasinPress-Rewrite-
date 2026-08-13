@@ -27,7 +27,7 @@ class RuntimeConfig:
     rss_feed_url: str = ""
     max_feed_items: int = 100
     max_article_age_hours: float = 12.0
-    max_publications_per_hour: int = 10
+    max_publications_per_hour: int = 30
 
     @classmethod
     def from_env(cls) -> RuntimeConfig:
