@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from yasinpress.core.helpers import stable_hash
 from yasinpress.database.models import Article
+from yasinpress.processing.headline import normalize_headline
 from yasinpress.sources.feed import FeedItem
 
 
@@ -30,7 +31,7 @@ def normalize(item: FeedItem, source: str, event_id: str | None = None) -> Artic
 
     return Article(
         id=news_id,
-        title=item.title.strip(),
+        title=normalize_headline(item.title),
         url=item.url,
         content=item.content.strip(),
         source=source,
