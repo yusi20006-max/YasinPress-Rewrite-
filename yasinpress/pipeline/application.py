@@ -47,6 +47,7 @@ class YasinPressApplication:
             source=source,
             ai=ai,
             publishers=self.publishers,
+            repository=self.repository,
             history=repositories.delivery_history if repositories else None,
             idempotency=repositories.idempotency if repositories else None,
             retry_policy=retry_policy,

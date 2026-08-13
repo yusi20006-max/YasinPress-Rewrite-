@@ -23,10 +23,11 @@ class SQLiteArticleRepository:
         self.connection.execute("""CREATE TABLE IF NOT EXISTS articles (
             id TEXT PRIMARY KEY, title TEXT NOT NULL, url TEXT NOT NULL,
             content TEXT NOT NULL, source TEXT NOT NULL,
-            published_at TEXT NOT NULL, category TEXT,
+            published_at TEXT, category TEXT,
             event_id TEXT, received_at TEXT, lifecycle_state TEXT,
             ai_state TEXT, ai_error TEXT, source_metadata TEXT)""")
-        for column in ["event_id", "received_at", "lifecycle_state", "ai_state", "ai_error", "source_metadata"]:
+        for column in ["event_id", "received_at", "lifecycle_state", "ai_state", "ai_error", "source_metadata",
+                       "updated_at", "fetched_at", "processed_at", "published_to_channel_at"]:
             try:
                 self.connection.execute(f"ALTER TABLE articles ADD COLUMN {column} TEXT")
             except sqlite3.OperationalError:
@@ -36,16 +37,22 @@ class SQLiteArticleRepository:
     def save(self, article: Article) -> None:
         metadata_str = json.dumps(article.source_metadata if article.source_metadata is not None else {})
         self.connection.execute(
-            """INSERT INTO articles(id,title,url,content,source,published_at,category,event_id,received_at,lifecycle_state,ai_state,ai_error,source_metadata)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+            """INSERT INTO articles(id,title,url,content,source,published_at,category,event_id,received_at,lifecycle_state,ai_state,ai_error,source_metadata,updated_at,fetched_at,processed_at,published_to_channel_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
                title=excluded.title,url=excluded.url,content=excluded.content,source=excluded.source,
                published_at=excluded.published_at,category=excluded.category,event_id=excluded.event_id,
                received_at=excluded.received_at,lifecycle_state=excluded.lifecycle_state,
-               ai_state=excluded.ai_state,ai_error=excluded.ai_error,source_metadata=excluded.source_metadata""",
+               ai_state=excluded.ai_state,ai_error=excluded.ai_error,source_metadata=excluded.source_metadata,
+               updated_at=excluded.updated_at,fetched_at=excluded.fetched_at,processed_at=excluded.processed_at,
+               published_to_channel_at=excluded.published_to_channel_at""",
             (article.id, article.title, article.url, article.content, article.source,
-             article.published_at.isoformat(), article.category, article.event_id,
-             article.received_at.isoformat(), article.lifecycle_state, article.ai_state,
-             article.ai_error, metadata_str),
+             article.published_at.isoformat() if article.published_at else None, article.category, article.event_id,
+             article.received_at.isoformat() if article.received_at else None, article.lifecycle_state, article.ai_state,
+             article.ai_error, metadata_str,
+             article.updated_at.isoformat() if article.updated_at else None,
+             article.fetched_at.isoformat() if article.fetched_at else None,
+             article.processed_at.isoformat() if article.processed_at else None,
+             article.published_to_channel_at.isoformat() if article.published_to_channel_at else None),
         )
         self.connection.commit()
 
@@ -65,8 +72,11 @@ class SQLiteArticleRepository:
 
     @staticmethod
     def _row_to_article(row) -> Article:
-        def dt(name: str, default: datetime) -> datetime:
-            value = row[name]
+        def dt(name: str, default: datetime | None = None) -> datetime | None:
+            try:
+                value = row[name]
+            except (IndexError, KeyError):
+                return default
             if not value:
                 return default
             parsed = datetime.fromisoformat(value)
@@ -80,9 +90,13 @@ class SQLiteArticleRepository:
 
         return Article(
             id=row["id"], title=row["title"], url=row["url"], content=row["content"], source=row["source"],
-            published_at=dt("published_at", datetime.now(UTC)), category=row["category"], event_id=row["event_id"],
-            received_at=dt("received_at", datetime.now(UTC)), lifecycle_state=row["lifecycle_state"] or "fetched",
+            published_at=dt("published_at", None), category=row["category"], event_id=row["event_id"],
+            received_at=dt("received_at", datetime.now(UTC)) or datetime.now(UTC), lifecycle_state=row["lifecycle_state"] or "fetched",
             ai_state=row["ai_state"] or "none", ai_error=row["ai_error"], source_metadata=source_meta,
+            updated_at=dt("updated_at", None),
+            fetched_at=dt("fetched_at", datetime.now(UTC)) or datetime.now(UTC),
+            processed_at=dt("processed_at", None),
+            published_to_channel_at=dt("published_to_channel_at", None),
         )
 
     def close(self) -> None:

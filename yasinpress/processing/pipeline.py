@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from yasinpress.ai.safe import SafeAIEnricher
 from yasinpress.database.models import Article
@@ -78,6 +78,10 @@ class ArticlePipeline:
             event_id=article.event_id,
             received_at=article.received_at,
             lifecycle_state="processed",
+            updated_at=article.updated_at,
+            fetched_at=article.fetched_at,
+            processed_at=datetime.now(UTC),
+            published_to_channel_at=article.published_to_channel_at,
         )
         validate_article(article)
         priority = calculate_priority(article.title, article.content)

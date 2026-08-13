@@ -269,6 +269,10 @@ class SQLitePublicationQueueEngine:
 
         if result.success:
             self.mark_success(job.id, now=current)
+            from dataclasses import replace
+            updated_article = replace(article, published_to_channel_at=current)
+            if hasattr(store, "save"):
+                store.save(updated_article)
         else:
             self.mark_failure(job.id, result.error or "Unknown publish error", now=current)
 

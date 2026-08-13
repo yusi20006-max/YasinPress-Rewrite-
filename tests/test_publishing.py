@@ -67,7 +67,9 @@ def test_eitaa_publisher_sends_message(monkeypatch):
     assert result.external_id == "42"
     assert captured["url"] == "https://eitaayar.ir/api/bot-token/sendMessage"
     assert captured["data"]["chat_id"] == "123"
-    assert captured["data"]["text"] == "<b>title</b>\n\nbody\n\nمنبع: example.com"
+    assert "<b>title</b>" in captured["data"]["text"]
+    assert "body" in captured["data"]["text"]
+    assert "منبع: example.com" in captured["data"]["text"]
 
 
 def test_eitaa_publisher_reports_api_rejection(monkeypatch):

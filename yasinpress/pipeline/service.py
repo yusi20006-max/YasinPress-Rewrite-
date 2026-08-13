@@ -33,6 +33,7 @@ class ProcessingService:
         source: str,
         ai: AIProvider | None = None,
         publishers: Iterable[Publisher] = (),
+        repository=None,
         history=None,
         idempotency=None,
         retry_policy: RetryPolicy | None = None,
@@ -43,8 +44,9 @@ class ProcessingService:
         publication_queue=None,
     ) -> None:
         self.ai = ai
-        self.pipeline = ArticlePipeline(source)
+        self.pipeline = ArticlePipeline(source, repository=repository)
         self.publication_queue = publication_queue
+        self.repository = repository
         self.publisher = PublishingOrchestrator(
             tuple(publishers),
             retry_policy=retry_policy,
@@ -97,6 +99,14 @@ class ProcessingService:
 
     def _fully_delivered(self, article: Article) -> bool:
         """Return true only when every configured destination already has this article."""
+        if article.published_to_channel_at is None:
+            return False
+
+        if article.news_timestamp is not None and article.published_to_channel_at is not None:
+            from datetime import timedelta
+            if article.news_timestamp > article.published_to_channel_at + timedelta(seconds=5):
+                return False
+
         return bool(self.publisher.publishers) and all(
             self.publisher.idempotency.seen(f"{article.id}:{publisher.publisher.name}")
             for publisher in self.publisher.publishers
@@ -138,10 +148,17 @@ class ProcessingService:
                 article.content,
                 published_at=article.published_at,
             )
+            pub = article.news_timestamp
+            if pub is None or article.lifecycle_state == "timestamp_unknown":
+                old_count += 1
+                continue
+
             cutoff = now - self.max_age
-            pub = article.published_at
             if pub.tzinfo is None:
                 pub = pub.replace(tzinfo=UTC)
+            else:
+                pub = pub.astimezone(UTC)
+
             if pub < cutoff:
                 old_count += 1
             else:
@@ -178,7 +195,17 @@ class ProcessingService:
 
                 for publisher in self.publisher.publishers:
                     job_id = f"{article.id}:{publisher.publisher.name}"
-                    if not self.publication_queue.exists(job_id):
+                    get_job_fn = getattr(self.publication_queue, "get_job", None)
+                    existing_job = get_job_fn(job_id) if get_job_fn is not None else None
+                    should_queue = False
+                    if existing_job is None:
+                        should_queue = True
+                    else:
+                        if article.news_timestamp is not None and article.published_to_channel_at is not None:
+                            if article.news_timestamp > article.published_to_channel_at:
+                                should_queue = True
+
+                    if should_queue:
                         self.publication_queue.add_job(
                             PublicationJob(
                                 id=job_id,
@@ -209,6 +236,11 @@ class ProcessingService:
         for article in selected:
             report = self.publisher.publish(article)
             results.extend(report.results)
+            if any(res.success for res in report.results):
+                from dataclasses import replace
+                article = replace(article, published_to_channel_at=datetime.now(UTC))
+                if self.repository is not None:
+                    self.repository.save(article)
 
         return ProcessingReport(
             PipelineResult(len(articles), result.rejected, articles),

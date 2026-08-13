@@ -36,6 +36,10 @@ class EitaaPublisher(Publisher):
 
     def render(self, article: Article) -> str:
         """Render the canonical Eitaa message without exposing the source URL."""
+        import os
+        from datetime import UTC, datetime
+        from yasinpress.core.helpers import format_persian_datetime
+
         source = escape(self._source_label(article))
         breaking = detect_breaking(
             article.title,
@@ -44,9 +48,21 @@ class EitaaPublisher(Publisher):
         ).is_breaking
         breaking_marker = "🚨 <b>خبر فوری</b>\n\n" if breaking else ""
         ai_marker = "🤖 " if article.ai_modified else ""
+
+        # Format the time block based on timezone configured
+        timezone_str = os.getenv("YASINPRESS_TIMEZONE", "Asia/Tehran")
+
+        if article.updated_at is not None and article.updated_at != datetime.fromtimestamp(0, tz=UTC):
+            time_str = f"🕐 آخرین به‌روزرسانی: {format_persian_datetime(article.updated_at, timezone_str)}"
+        elif article.published_at is not None and article.published_at != datetime.fromtimestamp(0, tz=UTC):
+            time_str = f"🕐 زمان خبر: {format_persian_datetime(article.published_at, timezone_str)}"
+        else:
+            time_str = "🕐 زمان انتشار: نامشخص"
+
         return (
             f"{breaking_marker}{ai_marker}<b>{escape(article.title)}</b>\n\n"
             f"{escape(article.content)}\n\n"
+            f"{time_str}\n"
             f"منبع: {source}"
         )
 
