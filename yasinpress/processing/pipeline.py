@@ -49,7 +49,11 @@ class ArticlePipeline:
 
     def process(self, item: FeedItem, *, source: str) -> ProcessedArticle | None:
         article = normalize(item, source)
-        breaking = detect_breaking(article.title, article.content)
+        breaking = detect_breaking(
+            article.title,
+            article.content,
+            published_at=article.published_at,
+        )
         # Breaking/urgent stories can bypass the normal freshness gate.
         if not is_fresh(
             article.published_at,
