@@ -13,37 +13,73 @@ from yasinpress.sources.catalog import RSSFeed, active_feeds, probe_feed
 
 
 def _startup_channel_setup() -> None:
-    """Ask whether an Eitaa channel should be configured at startup."""
-    existing_token = os.getenv("YASINPRESS_EITAA_TOKEN", "").strip()
-    existing_channel = os.getenv("YASINPRESS_EITAA_CHANNEL", "").strip()
+    """Load and persist Eitaa credentials with blank-to-keep behavior."""
+    env_file = Path(".env")
+
+    def load_saved():
+        values = {}
+        if env_file.exists():
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                if "=" in line and not line.lstrip().startswith("#"):
+                    key, value = line.split("=", 1)
+                    values[key.strip()] = value.strip().strip('"').strip("'")
+        return values
+
+    def save_saved(values):
+        lines = env_file.read_text(encoding="utf-8").splitlines() if env_file.exists() else []
+        keys = {
+            "YASINPRESS_EITAA_TOKEN": values["YASINPRESS_EITAA_TOKEN"],
+            "YASINPRESS_EITAA_CHANNEL": values["YASINPRESS_EITAA_CHANNEL"],
+        }
+        seen = set()
+        output = []
+        for line in lines:
+            key = line.split("=", 1)[0].strip() if "=" in line else ""
+            if key in keys:
+                output.append(f"{key}={keys[key]}")
+                seen.add(key)
+            else:
+                output.append(line)
+        for key, value in keys.items():
+            if key not in seen:
+                output.append(f"{key}={value}")
+        env_file.write_text("\n".join(output) + "\n", encoding="utf-8")
+        try:
+            env_file.chmod(0o600)
+        except OSError:
+            pass
+
+    saved = load_saved()
+    existing_token = os.getenv("YASINPRESS_EITAA_TOKEN", "").strip() or saved.get(
+        "YASINPRESS_EITAA_TOKEN", ""
+    )
+    existing_channel = os.getenv("YASINPRESS_EITAA_CHANNEL", "").strip() or saved.get(
+        "YASINPRESS_EITAA_CHANNEL", ""
+    )
 
     try:
-        answer = input("آیا کانالی برای اضافه کردن دارید؟ [y/N]: ").strip().lower()
-    except EOFError:
-        answer = ""
-
-    if answer not in {"y", "yes"}:
-        if existing_token and existing_channel:
-            print(f"Eitaa channel active: {existing_channel}")
-        else:
-            print("No Eitaa channel added. Continuing with RSS feeds.")
-        return
-
-    try:
-        token = getpass.getpass("Eitaa Token: ").strip()
-        channel = input("Eitaa Channel: ").strip()
+        token = getpass.getpass(
+            "کد ایتا [Enter برای حفظ مقدار قبلی]: "
+        ).strip()
+        channel = input(
+            "آدرس کانال [Enter برای حفظ مقدار قبلی]: "
+        ).strip()
     except (EOFError, KeyboardInterrupt):
         token = channel = ""
+
+    token = token or existing_token
+    channel = channel or existing_channel
 
     if token and channel:
         os.environ["YASINPRESS_EITAA_TOKEN"] = token
         os.environ["YASINPRESS_EITAA_CHANNEL"] = channel
-        print(f"Eitaa channel configured: {channel}")
-    elif existing_token and existing_channel:
-        print(f"Keeping existing Eitaa channel: {existing_channel}")
+        save_saved({
+            "YASINPRESS_EITAA_TOKEN": token,
+            "YASINPRESS_EITAA_CHANNEL": channel,
+        })
+        print(f"Eitaa channel active: {channel}")
     else:
-        print("Eitaa channel configuration skipped: token and channel are both required.")
-
+        print("Eitaa channel is not configured.")
 
 def _startup_feed_setup() -> None:
     """Validate configured RSS feeds and discover live alternatives when needed."""
