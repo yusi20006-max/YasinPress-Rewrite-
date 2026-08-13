@@ -13,18 +13,32 @@ def make_job(i: int, source: str, priority: int = 10, level: str = "normal") -> 
     )
 
 
-def test_global_limit_is_ten_per_rolling_hour():
+def test_global_limit_is_thirty_per_rolling_hour():
     db = sqlite3.connect(":memory:")
     q = SQLitePublicationQueueEngine(db)
     now = datetime(2026, 1, 1, 12, tzinfo=UTC)
-    for i in range(10):
+    for i in range(30):
         q.enqueue(make_job(i, f"s{i}"))
         job = q.claim_next(now)
         assert job is not None
         q.mark_success(job.id, now=now)
-    q.enqueue(make_job(11, "s11"))
+    q.enqueue(make_job(31, "s31"))
     assert q.claim_next(now) is None
-    assert q.metrics(now)["published_last_hour"] == 10
+    assert q.metrics(now)["published_last_hour"] == 30
+    assert q.metrics(now)["remaining_global_capacity"] == 0
+
+
+def test_global_capacity_opens_after_rolling_hour():
+    db = sqlite3.connect(":memory:")
+    q = SQLitePublicationQueueEngine(db)
+    now = datetime(2026, 1, 1, 12, tzinfo=UTC)
+    for i in range(30):
+        q.enqueue(make_job(i, f"s{i}"))
+        job = q.claim_next(now)
+        assert job is not None
+        q.mark_success(job.id, now=now)
+    q.enqueue(make_job(31, "s31"))
+    assert q.claim_next(now + timedelta(hours=1, seconds=1)) is not None
 
 
 def test_source_limit_is_five():
@@ -42,7 +56,7 @@ def test_source_limit_is_five():
 
 def test_fair_scheduling_alternates_sources():
     db = sqlite3.connect(":memory:")
-    q = SQLitePublicationQueueEngine(db, QueueConfig(global_limit=10, source_limit=5))
+    q = SQLitePublicationQueueEngine(db, QueueConfig(global_limit=30, source_limit=5))
     now = datetime(2026, 1, 1, 12, tzinfo=UTC)
     for i in range(3):
         q.enqueue(make_job(i, "alpha"))
@@ -99,7 +113,6 @@ def test_expired_lease_recovers_after_restart():
 
 def test_queue_persists_across_engine_restart():
     db = sqlite3.connect(":memory:")
-    datetime(2026, 1, 1, 12, tzinfo=UTC)
     q1 = SQLitePublicationQueueEngine(db)
     q1.enqueue(make_job(1, "source"))
     q2 = SQLitePublicationQueueEngine(db)
