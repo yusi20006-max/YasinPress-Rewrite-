@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import os
+from pathlib import Path
 
 from yasinpress.config.runtime import RuntimeConfig
 from yasinpress.health import check_database

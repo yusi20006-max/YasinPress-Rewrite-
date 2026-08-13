@@ -54,77 +54,91 @@ class SQLitePublicationQueueEngine:
     def claim_next(self, now: datetime) -> PublicationJob | None:
         if now.tzinfo is None:
             now = now.replace(tzinfo=UTC)
-        eligible = self.repositories.publication_queue.get_eligible_jobs(now)
-        if not eligible:
-            return None
 
-        cutoff = now - timedelta(hours=1)
-        recent_successes = [
-            r for r in self.repositories.delivery_history.all()
-            if r.success and r.created_at >= cutoff
-        ]
-
-        processing_jobs = [
-            j for j in self.repositories.publication_queue.get_all_jobs()
-            if j.status == "processing" and (j.lease_expires_at is None or j.lease_expires_at >= now)
-        ]
-
-        consumed_slots = len(recent_successes) + len(processing_jobs)
-        available_slots = max(0, self.config.global_limit - consumed_slots)
-        if available_slots <= 0:
-            return None
-
-        source_counts: dict[str, int] = defaultdict(int)
-        for record in recent_successes:
-            article = self.repositories.articles.get(record.article_id)
-            if article:
-                source_counts[article.source] += 1
-            else:
-                job = self.repositories.publication_queue.get_job(f"{record.article_id}:{record.destination}")
-                if job:
-                    source_counts[job.source] += 1
-
-        for job in processing_jobs:
-            source_counts[job.source] += 1
-
-        by_priority: dict[int, dict[str, list[PublicationJob]]] = {}
-        for job in eligible:
-            by_priority.setdefault(job.priority, {}).setdefault(job.source, []).append(job)
-
-        for sources in by_priority.values():
-            for jobs in sources.values():
-                jobs.sort(key=lambda j: j.created_at)
-
+        conn = self.repositories.connection
         selected_job: PublicationJob | None = None
-        published_keys = {(r.article_id, r.destination) for r in recent_successes}
 
-        for priority in sorted(by_priority, reverse=True):
-            sources = by_priority[priority]
-            active_sources = list(sources)
-            while active_sources:
-                for source in list(active_sources):
-                    if source_counts[source] >= self.config.source_limit or not sources[source]:
-                        active_sources.remove(source)
-                        continue
-                    job = sources[source].pop(0)
-                    key = (job.article_id, job.destination)
-                    if key in published_keys:
-                        continue
-                    selected_job = job
+        with conn:
+            conn.execute("BEGIN IMMEDIATE")
+
+            eligible = self.repositories.publication_queue.get_eligible_jobs(now)
+            if not eligible:
+                return None
+
+            cutoff = now - timedelta(hours=1)
+            recent_successes = [
+                r for r in self.repositories.delivery_history.all()
+                if r.success and r.created_at >= cutoff
+            ]
+
+            processing_jobs = [
+                j for j in self.repositories.publication_queue.get_all_jobs()
+                if j.status == "processing" and (j.lease_expires_at is None or j.lease_expires_at >= now)
+            ]
+
+            consumed_slots = len(recent_successes) + len(processing_jobs)
+            available_slots = max(0, self.config.global_limit - consumed_slots)
+            if available_slots <= 0:
+                return None
+
+            source_counts: dict[str, int] = defaultdict(int)
+            for record in recent_successes:
+                article = self.repositories.articles.get(record.article_id)
+                if article:
+                    source_counts[article.source] += 1
+                else:
+                    job = self.repositories.publication_queue.get_job(f"{record.article_id}:{record.destination}")
+                    if job:
+                        source_counts[job.source] += 1
+
+            for job in processing_jobs:
+                source_counts[job.source] += 1
+
+            by_priority: dict[int, dict[str, list[PublicationJob]]] = {}
+            for job in eligible:
+                by_priority.setdefault(job.priority, {}).setdefault(job.source, []).append(job)
+
+            for sources in by_priority.values():
+                for jobs in sources.values():
+                    jobs.sort(key=lambda j: j.created_at)
+
+            published_keys = {(r.article_id, r.destination) for r in recent_successes}
+
+            for priority in sorted(by_priority, reverse=True):
+                sources = by_priority[priority]
+                active_sources = list(sources)
+                while active_sources:
+                    for source in list(active_sources):
+                        if source_counts[source] >= self.config.source_limit or not sources[source]:
+                            active_sources.remove(source)
+                            continue
+                        job = sources[source].pop(0)
+                        key = (job.article_id, job.destination)
+                        if key in published_keys:
+                            continue
+                        selected_job = job
+                        break
+                    if selected_job is not None:
+                        break
                     break
                 if selected_job is not None:
                     break
-                break
-            if selected_job is not None:
-                break
 
-        if selected_job is None:
-            return None
+            if selected_job is None:
+                return None
 
-        selected_job.status = "processing"
-        selected_job.lease_expires_at = now + self.config.lease
-        selected_job.attempts += 1
-        self.repositories.publication_queue.save_job(selected_job)
+            selected_job.status = "processing"
+            selected_job.lease_expires_at = now + self.config.lease
+            selected_job.attempts += 1
+
+            # Save the selected job within the transaction using direct SQL to avoid auto-commit
+            conn.execute(
+                """INSERT INTO publication_queue(id,article_id,destination,status,priority,priority_level,source,attempts,max_attempts,last_error,lease_expires_at,next_attempt_at,created_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,attempts=excluded.attempts,last_error=excluded.last_error,lease_expires_at=excluded.lease_expires_at,next_attempt_at=excluded.next_attempt_at""",
+                (selected_job.id, selected_job.article_id, selected_job.destination, selected_job.status, selected_job.priority, selected_job.priority_level, selected_job.source, selected_job.attempts, selected_job.max_attempts, selected_job.last_error,
+                 selected_job.lease_expires_at.isoformat() if selected_job.lease_expires_at else None, selected_job.next_attempt_at.isoformat() if selected_job.next_attempt_at else None, selected_job.created_at.isoformat()),
+            )
+
         return selected_job
 
     def mark_success(self, job_id: str, now: datetime | None = None) -> None:
@@ -184,14 +198,22 @@ class SQLitePublicationQueueEngine:
     def recover_expired_leases(self, now: datetime) -> int:
         if now.tzinfo is None:
             now = now.replace(tzinfo=UTC)
-        stale_jobs = self.repositories.publication_queue.get_stale_leased_jobs(now)
+        conn = self.repositories.connection
         recovered_count = 0
-        for job in stale_jobs:
-            job.status = "retrying" if job.attempts > 0 else "pending"
-            job.lease_expires_at = None
-            job.last_error = "Lease expired (worker crash recovery)"
-            self.repositories.publication_queue.save_job(job)
-            recovered_count += 1
+        with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            stale_jobs = self.repositories.publication_queue.get_stale_leased_jobs(now)
+            for job in stale_jobs:
+                job.status = "retrying" if job.attempts > 0 else "pending"
+                job.lease_expires_at = None
+                job.last_error = "Lease expired (worker crash recovery)"
+                conn.execute(
+                    """INSERT INTO publication_queue(id,article_id,destination,status,priority,priority_level,source,attempts,max_attempts,last_error,lease_expires_at,next_attempt_at,created_at)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,attempts=excluded.attempts,last_error=excluded.last_error,lease_expires_at=excluded.lease_expires_at,next_attempt_at=excluded.next_attempt_at""",
+                    (job.id, job.article_id, job.destination, job.status, job.priority, job.priority_level, job.source, job.attempts, job.max_attempts, job.last_error,
+                     job.lease_expires_at.isoformat() if job.lease_expires_at else None, job.next_attempt_at.isoformat() if job.next_attempt_at else None, job.created_at.isoformat()),
+                )
+                recovered_count += 1
         return recovered_count
 
     def metrics(self, now: datetime | None = None) -> dict[str, int]:

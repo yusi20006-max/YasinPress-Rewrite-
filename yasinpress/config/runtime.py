@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 
 
-@dataclass(slots=True)
+@dataclass
 class RuntimeConfig:
     database_path: str = "yasinpress.db"
     worker_interval_seconds: float = 30.0
@@ -33,29 +33,30 @@ class RuntimeConfig:
     def from_env(cls) -> RuntimeConfig:
         raw_feeds = os.getenv("YASINPRESS_FEEDS", "")
         feeds = tuple(url.strip() for url in raw_feeds.split(",") if url.strip())
+        default_instance = cls()
         return cls(
-            database_path=os.getenv("YASINPRESS_DATABASE", cls.database_path),
-            worker_interval_seconds=float(os.getenv("YASINPRESS_WORKER_INTERVAL", cls.worker_interval_seconds)),
-            scheduler_interval_seconds=float(os.getenv("YASINPRESS_SCHEDULER_INTERVAL", cls.scheduler_interval_seconds)),
-            max_job_attempts=int(os.getenv("YASINPRESS_MAX_JOB_ATTEMPTS", cls.max_job_attempts)),
-            request_timeout_seconds=float(os.getenv("YASINPRESS_REQUEST_TIMEOUT", cls.request_timeout_seconds)),
+            database_path=os.getenv("YASINPRESS_DATABASE", default_instance.database_path),
+            worker_interval_seconds=float(os.getenv("YASINPRESS_WORKER_INTERVAL", default_instance.worker_interval_seconds)),
+            scheduler_interval_seconds=float(os.getenv("YASINPRESS_SCHEDULER_INTERVAL", default_instance.scheduler_interval_seconds)),
+            max_job_attempts=int(os.getenv("YASINPRESS_MAX_JOB_ATTEMPTS", default_instance.max_job_attempts)),
+            request_timeout_seconds=float(os.getenv("YASINPRESS_REQUEST_TIMEOUT", default_instance.request_timeout_seconds)),
             feed_urls=feeds,
-            feed_source=os.getenv("YASINPRESS_FEED_SOURCE", cls.feed_source),
-            language=os.getenv("YASINPRESS_LANGUAGE", cls.language).strip() or cls.language,
+            feed_source=os.getenv("YASINPRESS_FEED_SOURCE", default_instance.feed_source),
+            language=os.getenv("YASINPRESS_LANGUAGE", default_instance.language).strip() or default_instance.language,
             eitaa_token=os.getenv("YASINPRESS_EITAA_TOKEN", "").strip(),
             eitaa_channel=os.getenv("YASINPRESS_EITAA_CHANNEL", "").strip(),
-            eitaa_api_base=os.getenv("YASINPRESS_EITAA_API_BASE", cls.eitaa_api_base).strip(),
-            pwa_output_path=os.getenv("YASINPRESS_PWA_OUTPUT", cls.pwa_output_path).strip(),
-            pwa_title=os.getenv("YASINPRESS_PWA_TITLE", cls.pwa_title).strip(),
-            pwa_home_page_url=os.getenv("YASINPRESS_PWA_HOME_URL", cls.pwa_home_page_url).strip(),
-            pwa_feed_url=os.getenv("YASINPRESS_PWA_FEED_URL", cls.pwa_feed_url).strip(),
-            rss_output_path=os.getenv("YASINPRESS_RSS_OUTPUT", cls.rss_output_path).strip(),
-            rss_title=os.getenv("YASINPRESS_RSS_TITLE", cls.rss_title).strip(),
-            rss_link=os.getenv("YASINPRESS_RSS_LINK", cls.rss_link).strip(),
-            rss_feed_url=os.getenv("YASINPRESS_RSS_FEED_URL", cls.rss_feed_url).strip(),
-            max_feed_items=int(os.getenv("YASINPRESS_MAX_FEED_ITEMS", cls.max_feed_items)),
-            max_article_age_hours=float(os.getenv("YASINPRESS_MAX_ARTICLE_AGE_HOURS", cls.max_article_age_hours)),
-            max_publications_per_hour=int(os.getenv("YASINPRESS_MAX_PUBLICATIONS_PER_HOUR", cls.max_publications_per_hour)),
+            eitaa_api_base=os.getenv("YASINPRESS_EITAA_API_BASE", default_instance.eitaa_api_base).strip(),
+            pwa_output_path=os.getenv("YASINPRESS_PWA_OUTPUT", default_instance.pwa_output_path).strip(),
+            pwa_title=os.getenv("YASINPRESS_PWA_TITLE", default_instance.pwa_title).strip(),
+            pwa_home_page_url=os.getenv("YASINPRESS_PWA_HOME_URL", default_instance.pwa_home_page_url).strip(),
+            pwa_feed_url=os.getenv("YASINPRESS_PWA_FEED_URL", default_instance.pwa_feed_url).strip(),
+            rss_output_path=os.getenv("YASINPRESS_RSS_OUTPUT", default_instance.rss_output_path).strip(),
+            rss_title=os.getenv("YASINPRESS_RSS_TITLE", default_instance.rss_title).strip(),
+            rss_link=os.getenv("YASINPRESS_RSS_LINK", default_instance.rss_link).strip(),
+            rss_feed_url=os.getenv("YASINPRESS_RSS_FEED_URL", default_instance.rss_feed_url).strip(),
+            max_feed_items=int(os.getenv("YASINPRESS_MAX_FEED_ITEMS", default_instance.max_feed_items)),
+            max_article_age_hours=float(os.getenv("YASINPRESS_MAX_ARTICLE_AGE_HOURS", default_instance.max_article_age_hours)),
+            max_publications_per_hour=int(os.getenv("YASINPRESS_MAX_PUBLICATIONS_PER_HOUR", default_instance.max_publications_per_hour)),
         )
 
     def validate(self) -> None:
