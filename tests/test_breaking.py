@@ -12,6 +12,14 @@ def test_breaking_news_is_detected_when_fresh():
     assert result.score >= 60
 
 
+def test_urgency_wording_without_severity_does_not_make_news_breaking():
+    result = detect_breaking(
+        "فوری: جلسه خبری دولت",
+        published_at=datetime.now(UTC) - timedelta(minutes=10),
+    )
+    assert not result.is_breaking
+
+
 def test_priority_alone_does_not_make_news_breaking():
     result = detect_breaking(
         "قیمت بازار و هشدار اقتصادی",
