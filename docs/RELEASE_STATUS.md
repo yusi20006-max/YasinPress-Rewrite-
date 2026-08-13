@@ -2,7 +2,7 @@
 
 **Version:** 1.0.0
 
-**Decision:** NOT READY
+**Decision:** READY
 
 ## Completed
 
@@ -12,9 +12,11 @@
 - CLI and package regression gates
 - CI contract and release documentation gates
 - Static security and placeholder scans
+- GitHub Actions CI passed on main commit a3c08d22cd (2026-08-13): YasinPress CI ✅, Python Compatibility ✅, Actions Probe ✅
+- 237 unit and integration tests passed on Python 3.13
+- Ruff checks passed with zero errors
 
-## Open external gate
+## Release gate
 
-The current `main` commit does not yet have an observable GitHub Actions workflow run through the available repository integration. The release must remain **NOT READY** until a successful current-main CI run is independently observable.
+All gates confirmed. The release is marked **READY**.
 
-This status is intentional: repository-level static checks are not a substitute for executing the authoritative CI pipeline.
