@@ -11,7 +11,7 @@ from yasinpress.publishing import Publisher, PublishResult
 
 
 class EitaaPublisher(Publisher):
-    """Publish attributed articles through the Eitaa Yar Bot API."""
+    """Publish formatted articles through the Eitaa Yar Bot API."""
 
     def __init__(self, *, token: str, channel: str, api_base: str = "https://eitaayar.ir/api", timeout: float = 20.0) -> None:
         if not token.strip():
@@ -35,17 +35,29 @@ class EitaaPublisher(Publisher):
         return hostname.removeprefix("www.") if hostname else "منبع"
 
     def render(self, article: Article) -> str:
+        """Render the canonical Eitaa message without exposing the source URL."""
         source = escape(self._source_label(article))
-        source_url = escape(article.url, quote=True)
-        breaking = detect_breaking(article.title, article.content).is_breaking
-        ai_marker = "🤖 " if article.ai_modified else ""
+        breaking = detect_breaking(
+            article.title,
+            article.content,
+            published_at=article.published_at,
+        ).is_breaking
         breaking_marker = "🚨 <b>خبر فوری</b>\n\n" if breaking else ""
-        source_markup = f'<a href="{source_url}">{source}</a>'
-        return f'{breaking_marker}{ai_marker}<b>{escape(article.title)}</b>\n\n{escape(article.content)}\n\nمنبع: {source_markup}'
+        ai_marker = "🤖 " if article.ai_modified else ""
+        return (
+            f"{breaking_marker}{ai_marker}<b>{escape(article.title)}</b>\n\n"
+            f"{escape(article.content)}\n\n"
+            f"منبع: {source}"
+        )
 
     def publish(self, article: Article) -> PublishResult:
         url = f"{self.api_base}/{self.token}/sendMessage"
-        payload = {"chat_id": self.channel, "text": self.render(article), "parse_mode": "HTML", "disable_web_page_preview": "true"}
+        payload = {
+            "chat_id": self.channel,
+            "text": self.render(article),
+            "parse_mode": "HTML",
+            "disable_web_page_preview": "true",
+        }
         try:
             response = httpx.post(url, data=payload, timeout=self.timeout)
             response.raise_for_status()
