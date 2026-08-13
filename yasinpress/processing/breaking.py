@@ -51,20 +51,15 @@ def detect_breaking(
     *,
     published_at: datetime | None = None,
 ) -> BreakingResult:
-    """Detect breaking news from explicit urgency, severity and recency.
-
-    Priority remains an input signal, but a priority score by itself cannot make
-    an article breaking. The optional ``published_at`` keeps the public API
-    backward compatible for callers that do not have publication metadata.
-    """
+    """Detect breaking news from explicit urgency, title severity and recency."""
     result = calculate_priority(title, content)
-    text = f"{title} {content}".casefold()
-    explicit = any(term.casefold() in text for term in _EXPLICIT_BREAKING)
-    severe = any(term.casefold() in text for term in _SEVERE_EVENTS)
+    title_text = title.casefold()
+    explicit = any(term.casefold() in title_text for term in _EXPLICIT_BREAKING)
+    severe = any(term.casefold() in title_text for term in _SEVERE_EVENTS)
     age_hours = _age_hours(published_at)
     recent = age_hours is not None and age_hours <= 12
 
-    # A real breaking item must be recent and severe. Explicit newsroom wording
-    # is a strong signal; without it, the event still needs a meaningful score.
-    is_breaking = recent and severe and (explicit or result.score >= 60)
+    # Body text can contain historical/contextual references such as
+    # "جنگ تحمیلی". Severe-event detection therefore stays title-scoped.
+    is_breaking = recent and (explicit or severe)
     return BreakingResult(is_breaking=is_breaking, score=result.score)
