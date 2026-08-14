@@ -1,7 +1,10 @@
 import sqlite3
 from datetime import UTC, datetime, timedelta
+from inspect import signature
 
 from yasinpress.database.models import PublicationJob
+from yasinpress.pipeline.application import YasinPressApplication
+from yasinpress.pipeline.service import ProcessingService
 from yasinpress.publishing.queue import QueueConfig, SQLitePublicationQueueEngine
 
 
@@ -10,6 +13,12 @@ def make_job(name: str, source: str, priority: int = 10) -> PublicationJob:
         id=f"{name}:eitaa", article_id=name, destination="eitaa", status="pending",
         priority=priority, priority_level="normal", source=source,
     )
+
+
+def test_default_publication_cap_is_ten_across_application_paths():
+    assert QueueConfig().global_limit == 10
+    assert signature(YasinPressApplication).parameters["max_publications_per_hour"].default == 10
+    assert signature(ProcessingService).parameters["max_publications_per_hour"].default == 10
 
 
 def test_persistent_queue_survives_new_engine_instance():

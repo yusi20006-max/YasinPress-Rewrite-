@@ -13,18 +13,18 @@ def make_job(i: int, source: str, priority: int = 10, level: str = "normal") -> 
     )
 
 
-def test_global_limit_is_thirty_per_rolling_hour():
+def test_global_limit_is_ten_per_rolling_hour():
     db = sqlite3.connect(":memory:")
     q = SQLitePublicationQueueEngine(db)
     now = datetime(2026, 1, 1, 12, tzinfo=UTC)
-    for i in range(30):
+    for i in range(10):
         q.enqueue(make_job(i, f"s{i}"))
         job = q.claim_next(now)
         assert job is not None
         q.mark_success(job.id, now=now)
-    q.enqueue(make_job(31, "s31"))
+    q.enqueue(make_job(11, "s11"))
     assert q.claim_next(now) is None
-    assert q.metrics(now)["published_last_hour"] == 30
+    assert q.metrics(now)["published_last_hour"] == 10
     assert q.metrics(now)["remaining_global_capacity"] == 0
 
 
@@ -32,12 +32,12 @@ def test_global_capacity_opens_after_rolling_hour():
     db = sqlite3.connect(":memory:")
     q = SQLitePublicationQueueEngine(db)
     now = datetime(2026, 1, 1, 12, tzinfo=UTC)
-    for i in range(30):
+    for i in range(10):
         q.enqueue(make_job(i, f"s{i}"))
         job = q.claim_next(now)
         assert job is not None
         q.mark_success(job.id, now=now)
-    q.enqueue(make_job(31, "s31"))
+    q.enqueue(make_job(11, "s11"))
     assert q.claim_next(now + timedelta(hours=1, seconds=1)) is not None
 
 
