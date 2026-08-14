@@ -207,7 +207,7 @@ class SQLitePublicationQueue:
     def add_job(self, job: PublicationJob) -> None:
         self.connection.execute(
             """INSERT INTO publication_queue(id,article_id,destination,status,priority,priority_level,source,attempts,max_attempts,last_error,lease_expires_at,next_attempt_at,created_at)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,attempts=excluded.attempts,last_error=excluded.last_error,lease_expires_at=excluded.lease_expires_at,next_attempt_at=excluded.next_attempt_at""",
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,attempts=excluded.attempts,last_error=excluded.last_error,lease_expires_at=excluded.lease_expires_at,next_attempt_at=excluded.next_attempt_at,created_at=excluded.created_at""",
             (job.id,job.article_id,job.destination,job.status,job.priority,job.priority_level,job.source,job.attempts,job.max_attempts,job.last_error,
              job.lease_expires_at.isoformat() if job.lease_expires_at else None,job.next_attempt_at.isoformat() if job.next_attempt_at else None,job.created_at.isoformat()),
         )
