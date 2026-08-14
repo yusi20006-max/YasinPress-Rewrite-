@@ -1,6 +1,5 @@
 """Database migrations for durable article state."""
 
-import re
 import sqlite3
 
 
@@ -58,16 +57,55 @@ def _published_at_is_not_null(connection: sqlite3.Connection) -> bool:
 
 def _make_published_at_nullable(create_sql: str) -> str:
     """Remove only the legacy NOT NULL constraint from published_at."""
-    updated_sql, count = re.subn(
-        r"(\bpublished_at\b\s+[^,\)]*?)\s+NOT\s+NULL\b",
-        r"\1",
-        create_sql,
-        count=1,
-        flags=re.IGNORECASE,
-    )
-    if count != 1:
+    lowered = create_sql.lower()
+    published_index = lowered.find("published_at")
+    if published_index < 0:
+        raise RuntimeError("published_at column is missing from legacy schema")
+
+    boundaries = [
+        index
+        for index in (lowered.find(",", published_index), lowered.find(")", published_index))
+        if index >= 0
+    ]
+    if not boundaries:
+        raise RuntimeError("Unable to locate published_at column boundary")
+
+    column_end = min(boundaries)
+    not_null_index = lowered.rfind("not null", published_index, column_end)
+    if not_null_index < 0:
         raise RuntimeError("Unable to locate published_at NOT NULL constraint")
-    return updated_sql
+
+    constraint_end = not_null_index + len("not null")
+    return create_sql[:not_null_index].rstrip() + create_sql[constraint_end:]
+
+
+def _rename_articles_create_statement(create_sql: str) -> str:
+    """Change the legacy articles table name in its CREATE TABLE statement."""
+    lowered = create_sql.lower()
+    create_index = lowered.find("create table")
+    if create_index < 0:
+        raise RuntimeError("Unable to locate CREATE TABLE statement")
+
+    cursor = create_index + len("create table")
+    while cursor < len(create_sql) and create_sql[cursor].isspace():
+        cursor += 1
+
+    if lowered.startswith("if not exists", cursor):
+        cursor += len("if not exists")
+        while cursor < len(create_sql) and create_sql[cursor].isspace():
+            cursor += 1
+
+    identifiers = (
+        ('"articles"', len('"articles"')),
+        ("[articles]", len("[articles]")),
+        ("`articles`", len("`articles`")),
+        ("articles", len("articles")),
+    )
+    for identifier, length in identifiers:
+        if lowered.startswith(identifier, cursor):
+            return create_sql[:cursor] + "articles__migration" + create_sql[cursor + length :]
+
+    raise RuntimeError("Unable to locate articles table name")
 
 
 def _rebuild_articles_table(connection: sqlite3.Connection) -> None:
@@ -79,16 +117,7 @@ def _rebuild_articles_table(connection: sqlite3.Connection) -> None:
         raise RuntimeError("articles table definition is unavailable")
 
     create_sql = _make_published_at_nullable(str(row[0]))
-    replacement_sql = re.sub(
-        r"(\bCREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+)"
-        r"(?:\"articles\"|\[articles\]|`articles`|articles)\b",
-        r"\1articles__migration",
-        create_sql,
-        count=1,
-        flags=re.IGNORECASE,
-    )
-    if replacement_sql == create_sql:
-        raise RuntimeError("Unable to build replacement articles table")
+    replacement_sql = _rename_articles_create_statement(create_sql)
 
     preserved_objects = connection.execute(
         """
