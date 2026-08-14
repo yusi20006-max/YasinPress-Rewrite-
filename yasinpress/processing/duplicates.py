@@ -36,6 +36,18 @@ class DuplicateDetector:
 
     def is_duplicate(self, article: Article) -> bool:
         """Return whether an article ID has already been stored."""
+        existing = getattr(self.repository, "get", lambda x: None)(article.id)
+        if existing is not None:
+            new_ts = article.news_timestamp
+            old_ts = existing.news_timestamp
+            if new_ts is not None:
+                if old_ts is None:
+                    return False
+                from datetime import timedelta
+                # Treat as update only if it is at least 5 seconds newer
+                if new_ts > old_ts + timedelta(seconds=5):
+                    return False
+            return True
         return self.repository.exists(article.id)
 
     def compare_title(self, title: str, existing_titles: Sequence[str]) -> DuplicateMatch:

@@ -2,7 +2,7 @@
 
 import email.utils
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 
@@ -13,27 +13,42 @@ class FeedItem:
     title: str
     url: str
     content: str
-    published_at: datetime
+    published_at: datetime | None = None
     source: str = ""
     media_url: str | None = None
     media_type: str | None = None
+    updated_at: datetime | None = None
+    fetched_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+def _parse_date(raw: str | None) -> datetime | None:
+    if not raw or not raw.strip():
+        return None
+    raw = raw.strip()
+    try:
+        parsed = email.utils.parsedate_to_datetime(raw)
+        return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    except (TypeError, ValueError, IndexError):
+        pass
+    try:
+        # ISO 8601 parsing
+        parsed = datetime.fromisoformat(raw)
+        return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    except (TypeError, ValueError, IndexError):
+        pass
+    return None
 
 
 def _published_at(item: ET.Element) -> datetime:
     """Return the feed publication time, or epoch when unavailable/invalid."""
-    raw = (
-        item.findtext("pubDate")
-        or item.findtext("published")
-        or item.findtext("updated")
-        or ""
-    ).strip()
-    if raw:
-        try:
-            parsed = email.utils.parsedate_to_datetime(raw)
-            return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
-        except (TypeError, ValueError, IndexError):
-            pass
-    return datetime.fromtimestamp(0, tz=UTC)
+    is_atom = item.tag == "{http://www.w3.org/2005/Atom}entry"
+    if is_atom:
+        raw = item.findtext("{http://www.w3.org/2005/Atom}published") or item.findtext("{http://www.w3.org/2005/Atom}updated")
+    else:
+        raw = item.findtext("pubDate") or item.findtext("published") or item.findtext("updated")
+
+    parsed = _parse_date(raw)
+    return parsed if parsed else datetime.fromtimestamp(0, tz=UTC)
 
 
 def parse_rss(xml_text: str) -> list[FeedItem]:
@@ -56,14 +71,29 @@ def parse_rss(xml_text: str) -> list[FeedItem]:
                 or item.findtext("{http://www.w3.org/2005/Atom}summary")
                 or ""
             )
+            pub_val = item.findtext("{http://www.w3.org/2005/Atom}published")
+            upd_val = item.findtext("{http://www.w3.org/2005/Atom}updated")
         else:
             title = item.findtext("title", "")
             url = item.findtext("link", "")
             content = item.findtext("description") or ""
+            pub_val = item.findtext("pubDate") or item.findtext("published")
+            upd_val = item.findtext("updated")
 
         title = title.strip()
         url = url.strip()
         content = content.strip()
+
+        published_at = _parse_date(pub_val)
+        updated_at = _parse_date(upd_val)
+
+        # If published is missing but updated is present, fallback
+        if published_at is None and updated_at is not None:
+            published_at = updated_at
+
+        # Backward compatibility fallback to epoch when unavailable
+        if published_at is None:
+            published_at = datetime.fromtimestamp(0, tz=UTC)
 
         enclosure = item.find("enclosure")
         media_url = None
@@ -86,7 +116,9 @@ def parse_rss(xml_text: str) -> list[FeedItem]:
                     title=title,
                     url=url,
                     content=content,
-                    published_at=_published_at(item),
+                    published_at=published_at,
+                    updated_at=updated_at,
+                    source="",
                     media_url=media_url,
                     media_type=media_type,
                 )

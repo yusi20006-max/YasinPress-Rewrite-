@@ -19,7 +19,10 @@ def article(*, ai_modified: bool = False, title: str = "خبر آزمایشی", 
 def test_render_uses_plain_source_label_without_url_or_link_markup():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article())
-    assert rendered == "<b>خبر آزمایشی</b>\n\nمتن خبر\n\nمنبع: example.com"
+    assert "<b>خبر آزمایشی</b>" in rendered
+    assert "متن خبر" in rendered
+    assert "منبع: example.com" in rendered
+    assert "🕐" in rendered
     assert "https://" not in rendered
     assert "<a " not in rendered
     assert "🤖" not in rendered
@@ -34,7 +37,9 @@ def test_render_marks_only_ai_modified_articles():
 def test_render_uses_breaking_header_for_fresh_severe_news():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(title="فوری: زلزله شدید"))
-    assert rendered == "🚨 <b>خبر فوری</b>\n\n<b>فوری: زلزله شدید</b>\n\nمتن خبر\n\nمنبع: example.com"
+    assert rendered.startswith("🚨 <b>خبر فوری</b>\n\n")
+    assert "<b>فوری: زلزله شدید</b>" in rendered
+    assert "منبع: example.com" in rendered
     assert "https://" not in rendered
     assert "<a " not in rendered
 

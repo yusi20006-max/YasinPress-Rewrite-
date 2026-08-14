@@ -33,6 +33,7 @@ class ProcessingService:
         source: str,
         ai: AIProvider | None = None,
         publishers: Iterable[Publisher] = (),
+        repository=None,
         history=None,
         idempotency=None,
         retry_policy: RetryPolicy | None = None,
@@ -43,8 +44,9 @@ class ProcessingService:
         publication_queue=None,
     ) -> None:
         self.ai = ai
-        self.pipeline = ArticlePipeline(source)
+        self.pipeline = ArticlePipeline(source, repository=repository)
         self.publication_queue = publication_queue
+        self.repository = repository
         self.publisher = PublishingOrchestrator(
             tuple(publishers),
             retry_policy=retry_policy,
@@ -61,6 +63,7 @@ class ProcessingService:
         self.max_publications_per_hour = max_publications_per_hour
 
     def _enrich(self, article: Article) -> Article:
+        from dataclasses import replace
         if self.ai is None:
             return article
         if hasattr(self.ai, "enrich"):
@@ -69,34 +72,39 @@ class ProcessingService:
                 ai_state = "rewritten"
                 if result.title == article.title and result.content == article.content:
                     ai_state = "fallback"
-                return Article(
-                    id=article.id, title=result.title, url=article.url, content=result.content,
-                    source=article.source, published_at=article.published_at, category=article.category,
-                    event_id=article.event_id, received_at=article.received_at,
-                    lifecycle_state=article.lifecycle_state, ai_state=ai_state, ai_error=None,
-                    source_metadata=article.source_metadata,
+                return replace(
+                    article,
+                    title=result.title,
+                    content=result.content,
+                    ai_state=ai_state,
+                    ai_error=None,
                 )
-            return Article(
-                id=article.id, title=article.title, url=article.url, content=article.content,
-                source=article.source, published_at=article.published_at, category=article.category,
-                event_id=article.event_id, received_at=article.received_at,
-                lifecycle_state=article.lifecycle_state, ai_state="failed",
-                ai_error=getattr(result, "error", "AI failed"), source_metadata=article.source_metadata,
+            return replace(
+                article,
+                ai_state="failed",
+                ai_error=getattr(result, "error", "AI failed"),
             )
         rewrite = getattr(self.ai, "rewrite", None)
         if rewrite is not None:
             content = rewrite(article.content)
-            return Article(
-                id=article.id, title=article.title, url=article.url, content=content,
-                source=article.source, published_at=article.published_at, category=article.category,
-                event_id=article.event_id, received_at=article.received_at,
-                lifecycle_state=article.lifecycle_state, ai_state="rewritten", ai_error=None,
-                source_metadata=article.source_metadata,
+            return replace(
+                article,
+                content=content,
+                ai_state="rewritten",
+                ai_error=None,
             )
         return article
 
     def _fully_delivered(self, article: Article) -> bool:
         """Return true only when every configured destination already has this article."""
+        if article.published_to_channel_at is None:
+            return False
+
+        if article.news_timestamp is not None and article.published_to_channel_at is not None:
+            from datetime import timedelta
+            if article.news_timestamp > article.published_to_channel_at + timedelta(seconds=5):
+                return False
+
         return bool(self.publisher.publishers) and all(
             self.publisher.idempotency.seen(f"{article.id}:{publisher.publisher.name}")
             for publisher in self.publisher.publishers
@@ -110,7 +118,12 @@ class ProcessingService:
 
     def _select_fair_batch(self, articles: tuple[Article, ...]) -> tuple[Article, ...]:
         buckets: dict[str, list[Article]] = defaultdict(list)
-        for article in sorted(articles, key=lambda item: item.published_at, reverse=True):
+        def get_sort_key(item: Article) -> datetime:
+            ts = item.news_timestamp
+            if ts is None:
+                return datetime.fromtimestamp(0, tz=UTC)
+            return ts
+        for article in sorted(articles, key=get_sort_key, reverse=True):
             buckets[article.source].append(article)
         selected: list[Article] = []
         while len(selected) < self.max_publications_per_hour and buckets:
@@ -138,10 +151,17 @@ class ProcessingService:
                 article.content,
                 published_at=article.published_at,
             )
+            pub = article.news_timestamp
+            if pub is None or article.lifecycle_state == "timestamp_unknown":
+                old_count += 1
+                continue
+
             cutoff = now - self.max_age
-            pub = article.published_at
             if pub.tzinfo is None:
                 pub = pub.replace(tzinfo=UTC)
+            else:
+                pub = pub.astimezone(UTC)
+
             if pub < cutoff:
                 old_count += 1
             else:
@@ -178,7 +198,17 @@ class ProcessingService:
 
                 for publisher in self.publisher.publishers:
                     job_id = f"{article.id}:{publisher.publisher.name}"
-                    if not self.publication_queue.exists(job_id):
+                    get_job_fn = getattr(self.publication_queue, "get_job", None)
+                    existing_job = get_job_fn(job_id) if get_job_fn is not None else None
+                    should_queue = False
+                    if existing_job is None or article.published_to_channel_at is None or (
+                        article.news_timestamp is not None
+                        and article.published_to_channel_at is not None
+                        and article.news_timestamp > article.published_to_channel_at + timedelta(seconds=5)
+                    ):
+                        should_queue = True
+
+                    if should_queue:
                         self.publication_queue.add_job(
                             PublicationJob(
                                 id=job_id,
@@ -206,12 +236,21 @@ class ProcessingService:
         selected = self._select_fair_batch(undelivered)[:available]
         queued_count = max(0, len(undelivered) - len(selected))
         results: list[PublishResult] = []
+        updated_articles_map = {}
         for article in selected:
             report = self.publisher.publish(article)
             results.extend(report.results)
+            if any(res.success for res in report.results):
+                from dataclasses import replace
+                article = replace(article, published_to_channel_at=datetime.now(UTC))
+                updated_articles_map[article.id] = article
+                if self.repository is not None:
+                    self.repository.save(article)
+
+        final_articles = tuple(updated_articles_map.get(a.id, a) for a in articles)
 
         return ProcessingReport(
-            PipelineResult(len(articles), result.rejected, articles),
+            PipelineResult(len(articles), result.rejected, final_articles),
             PublishReport(tuple(results)),
             old_count=old_count,
             queued_count=queued_count,
