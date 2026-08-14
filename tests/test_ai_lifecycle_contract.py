@@ -25,13 +25,18 @@ class RewritingProvider(AIProvider):
 
 
 def make_article() -> Article:
+    now = datetime(2026, 8, 14, 10, 0, tzinfo=UTC)
     return Article(
         id="YP-TEST-AI",
         title="عنوان اصلی",
         url="https://example.com/news",
         content="متن اصلی",
         source="example",
-        published_at=datetime.now(UTC),
+        published_at=datetime(2026, 8, 14, 9, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 8, 14, 9, 30, tzinfo=UTC),
+        fetched_at=datetime(2026, 8, 14, 9, 45, tzinfo=UTC),
+        processed_at=now,
+        published_to_channel_at=datetime(2026, 8, 14, 10, 5, tzinfo=UTC),
     )
 
 
@@ -42,15 +47,25 @@ def test_ai_disabled_has_explicit_disabled_state() -> None:
 
 
 def test_provider_failure_falls_back_to_original() -> None:
-    result = ArticleEnricher(SafeAIEnricher(FailingProvider())).enrich(make_article())
+    article = make_article()
+    result = ArticleEnricher(SafeAIEnricher(FailingProvider())).enrich(article)
     assert result.article.ai_state == "fallback_original"
     assert result.article.title == "عنوان اصلی"
     assert result.article.content == "متن اصلی"
     assert result.article.ai_error == "provider unavailable"
+    assert result.article.updated_at == article.updated_at
+    assert result.article.fetched_at == article.fetched_at
+    assert result.article.processed_at == article.processed_at
+    assert result.article.published_to_channel_at == article.published_to_channel_at
 
 
 def test_successful_rewrite_sets_rewritten_state() -> None:
-    result = ArticleEnricher(SafeAIEnricher(RewritingProvider())).enrich(make_article())
+    article = make_article()
+    result = ArticleEnricher(SafeAIEnricher(RewritingProvider())).enrich(article)
     assert result.article.ai_state == "rewritten"
     assert result.article.ai_modified is True
     assert result.article.title == "بازنویسی"
+    assert result.article.updated_at == article.updated_at
+    assert result.article.fetched_at == article.fetched_at
+    assert result.article.processed_at == article.processed_at
+    assert result.article.published_to_channel_at == article.published_to_channel_at
