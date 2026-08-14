@@ -16,7 +16,7 @@ class PublicationQueueProcessor:
         self,
         repositories: SQLiteRepositories,
         publishers,
-        max_global_per_hour: int = 30,
+        max_global_per_hour: int = 10,
         max_source_per_hour: int = 5,
         lease_duration_seconds: int = 60,
         base_backoff_seconds: float = 2.0,
@@ -32,7 +32,6 @@ class PublicationQueueProcessor:
         if not hasattr(self.repositories, "publication_queue") or self.repositories.publication_queue is None:
             return 0
         if not hasattr(self.repositories, "connection") or self.repositories.connection is None:
-            # Fallback for mock repositories without connection attribute
             stale_jobs = self.repositories.publication_queue.get_stale_leased_jobs(now)
             recovered_count = 0
             for job in stale_jobs:
@@ -81,9 +80,9 @@ class PublicationQueueProcessor:
                 source_counts[article.source] += 1
                 counted_articles.add(record.article_id)
 
-        # Include unexpired processing jobs
         processing_jobs = [
-            job for job in self.repositories.publication_queue.get_all_jobs()
+            job
+            for job in self.repositories.publication_queue.get_all_jobs()
             if job.status == "processing" and (job.lease_expires_at is None or job.lease_expires_at >= now)
         ]
         for job in processing_jobs:
@@ -125,9 +124,7 @@ class PublicationQueueProcessor:
 
         for sources in by_priority.values():
             for article_ids in sources.values():
-                article_ids.sort(
-                    key=lambda article_id: min(job.created_at for job in article_jobs[article_id])
-                )
+                article_ids.sort(key=lambda article_id: min(job.created_at for job in article_jobs[article_id]))
 
         selected: set[str] = set()
         selected_source_counts: dict[str, int] = defaultdict(int)
@@ -140,10 +137,7 @@ class PublicationQueueProcessor:
             while active_sources and len(selected) < available_slots:
                 progressed = False
                 for source in list(active_sources):
-                    if (
-                        source_counts[source] + selected_source_counts[source] >= self.max_source_per_hour
-                        or not sources[source]
-                    ):
+                    if source_counts[source] + selected_source_counts[source] >= self.max_source_per_hour or not sources[source]:
                         active_sources.remove(source)
                         continue
                     article_id = sources[source].pop(0)
@@ -171,47 +165,22 @@ class PublicationQueueProcessor:
 
         with conn:
             conn.execute("BEGIN IMMEDIATE")
-
             eligible = self.repositories.publication_queue.get_eligible_jobs(now)
             if not eligible:
                 return []
 
-            (
-                _recent_successes,
-                published_keys,
-                published_article_ids,
-                source_counts,
-            ) = self._recent_delivery_state(now)
+            _recent_successes, published_keys, published_article_ids, source_counts = self._recent_delivery_state(now)
+            available_unique_slots = max(0, self.max_global_per_hour - len(published_article_ids))
+            new_article_ids = self._select_new_articles(eligible, published_article_ids, source_counts, available_unique_slots)
 
-            available_unique_slots = max(
-                0,
-                self.max_global_per_hour - len(published_article_ids),
-            )
-
-            new_article_ids = self._select_new_articles(
-                eligible,
-                published_article_ids,
-                source_counts,
-                available_unique_slots,
-            )
-
-            # Jobs belonging to an article that already consumed a unique slot in
-            # the last hour are fan-out work: they do not consume another unique
-            # article slot. New articles consume exactly one slot regardless of the
-            # number of destinations they have.
             selected_article_ids = published_article_ids | new_article_ids
             selected_jobs = [
                 job
                 for job in eligible
-                if job.article_id in selected_article_ids
-                and (job.article_id, job.destination) not in published_keys
+                if job.article_id in selected_article_ids and (job.article_id, job.destination) not in published_keys
             ]
+            selected_jobs.sort(key=lambda job: (-job.priority, job.created_at, job.source, job.destination))
 
-            selected_jobs.sort(
-                key=lambda job: (-job.priority, job.created_at, job.source, job.destination)
-            )
-
-            # Transition all selected jobs to 'processing' atomically inside the transaction.
             for job in selected_jobs:
                 job.status = "processing"
                 job.lease_expires_at = now + timedelta(seconds=self.lease_duration_seconds)
@@ -243,11 +212,7 @@ class PublicationQueueProcessor:
 
             key = f"{article.id}:{publisher.name}"
             try:
-                result = (
-                    PublishResult(True, publisher.name, external_id=article.id)
-                    if self.repositories.idempotency.seen(key)
-                    else publisher.publish(article)
-                )
+                result = PublishResult(True, publisher.name, external_id=article.id) if self.repositories.idempotency.seen(key) else publisher.publish(article)
             except Exception as exc:
                 result = PublishResult(False, publisher.name, error=str(exc))
 
@@ -275,9 +240,7 @@ class PublicationQueueProcessor:
                     job.lease_expires_at = None
                 else:
                     job.status = "retrying"
-                    job.next_attempt_at = now + timedelta(
-                        seconds=self.base_backoff_seconds * (2 ** (job.attempts - 1))
-                    )
+                    job.next_attempt_at = now + timedelta(seconds=self.base_backoff_seconds * (2 ** (job.attempts - 1)))
                     job.lease_expires_at = None
 
             self.repositories.publication_queue.save_job(job)
