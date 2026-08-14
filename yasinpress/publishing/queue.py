@@ -80,11 +80,8 @@ class SQLitePublicationQueueEngine:
                 and (job.lease_expires_at is None or job.lease_expires_at >= now)
             ]
             processing_article_ids = {job.article_id for job in processing_jobs}
-
             consumed_article_ids = recent_success_article_ids | processing_article_ids
             available_slots = max(0, self.config.global_limit - len(consumed_article_ids))
-            if available_slots <= 0:
-                return None
 
             source_counts: dict[str, int] = defaultdict(int)
             counted_article_ids: set[str] = set()
@@ -117,25 +114,43 @@ class SQLitePublicationQueueEngine:
 
             published_keys = {(record.article_id, record.destination) for record in recent_successes}
 
+            # Continue fan-out for articles already consuming a slot. These destinations
+            # must not be blocked by the global/source limits because the article has
+            # already been counted once for the current hour.
             for priority in sorted(by_priority, reverse=True):
                 sources = by_priority[priority]
-                active_sources = list(sources)
-                while active_sources:
-                    for source in list(active_sources):
-                        if source_counts[source] >= self.config.source_limit or not sources[source]:
-                            active_sources.remove(source)
-                            continue
-                        job = sources[source].pop(0)
+                for source in list(sources):
+                    for job in sources[source]:
                         key = (job.article_id, job.destination)
-                        if key in published_keys:
-                            continue
-                        selected_job = job
-                        break
+                        if job.article_id in consumed_article_ids and key not in published_keys:
+                            selected_job = job
+                            break
                     if selected_job is not None:
                         break
-                    break
                 if selected_job is not None:
                     break
+
+            if selected_job is None and available_slots > 0:
+                for priority in sorted(by_priority, reverse=True):
+                    sources = by_priority[priority]
+                    active_sources = list(sources)
+                    while active_sources:
+                        progressed = False
+                        for source in list(active_sources):
+                            if source_counts[source] >= self.config.source_limit or not sources[source]:
+                                active_sources.remove(source)
+                                continue
+                            job = sources[source].pop(0)
+                            key = (job.article_id, job.destination)
+                            if key in published_keys or job.article_id in consumed_article_ids:
+                                continue
+                            selected_job = job
+                            progressed = True
+                            break
+                        if selected_job is not None or not progressed:
+                            break
+                    if selected_job is not None:
+                        break
 
             if selected_job is None:
                 return None
