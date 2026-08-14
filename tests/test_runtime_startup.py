@@ -3,6 +3,11 @@ from yasinpress.runtime_factory import build_runtime
 from yasinpress.scheduler.jobs import JobStatus, new_job
 
 
+def test_default_publication_cap_is_ten():
+    config = RuntimeConfig()
+    assert config.max_publications_per_hour == 10
+
+
 def test_startup_runs_recovery(tmp_path):
     path = str(tmp_path / "startup.db")
     cfg = RuntimeConfig(database_path=path)
