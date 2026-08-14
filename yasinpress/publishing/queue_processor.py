@@ -29,6 +29,7 @@ class PublicationQueueProcessor:
         self.base_backoff_seconds = base_backoff_seconds
 
     def recover_expired_leases(self, now: datetime) -> int:
+        """Return expired processing leases to the retryable queue."""
         if not hasattr(self.repositories, "publication_queue") or self.repositories.publication_queue is None:
             return 0
         if not hasattr(self.repositories, "connection") or self.repositories.connection is None:
@@ -69,6 +70,7 @@ class PublicationQueueProcessor:
         ]
         published_keys = {(record.article_id, record.destination) for record in recent_successes}
         published_article_ids = {record.article_id for record in recent_successes}
+        delivery_by_key = {(record.article_id, record.destination): record for record in recent_successes}
 
         source_counts: dict[str, int] = defaultdict(int)
         counted_articles: set[str] = set()
@@ -91,7 +93,7 @@ class PublicationQueueProcessor:
                 source_counts[job.source] += 1
                 counted_articles.add(job.article_id)
 
-        return recent_successes, published_keys, published_article_ids, source_counts
+        return recent_successes, published_keys, published_article_ids, source_counts, delivery_by_key
 
     def _select_new_articles(
         self,
@@ -152,38 +154,47 @@ class PublicationQueueProcessor:
         return selected
 
     def process_cycle(self, now: datetime | None = None) -> list[PublishResult]:
-        if now is None:
-            now = datetime.now(UTC)
-        if now.tzinfo is None:
-            now = now.replace(tzinfo=UTC)
-        self.recover_expired_leases(now)
+        """Process one durable publication cycle with version-aware idempotency."""
+        current = now or datetime.now(UTC)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=UTC)
+        self.recover_expired_leases(current)
         if not hasattr(self.repositories, "publication_queue") or self.repositories.publication_queue is None:
             return []
 
-        conn = self.repositories.connection
+        conn = getattr(self.repositories, "connection", None)
+        if conn is None:
+            return []
         selected_jobs: list[PublicationJob] = []
 
         with conn:
             conn.execute("BEGIN IMMEDIATE")
-            eligible = self.repositories.publication_queue.get_eligible_jobs(now)
+            eligible = self.repositories.publication_queue.get_eligible_jobs(current)
             if not eligible:
                 return []
 
-            _recent_successes, published_keys, published_article_ids, source_counts = self._recent_delivery_state(now)
+            _recent_successes, published_keys, published_article_ids, source_counts, delivery_by_key = self._recent_delivery_state(current)
             available_unique_slots = max(0, self.max_global_per_hour - len(published_article_ids))
             new_article_ids = self._select_new_articles(eligible, published_article_ids, source_counts, available_unique_slots)
 
             selected_article_ids = published_article_ids | new_article_ids
-            selected_jobs = [
-                job
-                for job in eligible
-                if job.article_id in selected_article_ids and (job.article_id, job.destination) not in published_keys
-            ]
+            for job in eligible:
+                if job.article_id not in selected_article_ids:
+                    continue
+                key = (job.article_id, job.destination)
+                previous = delivery_by_key.get(key)
+                if key in published_keys:
+                    article = self.repositories.articles.get(job.article_id)
+                    news_timestamp = article.news_timestamp if article is not None else None
+                    if previous is not None and (news_timestamp is None or news_timestamp <= previous.created_at):
+                        continue
+                selected_jobs.append(job)
+
             selected_jobs.sort(key=lambda job: (-job.priority, job.created_at, job.source, job.destination))
 
             for job in selected_jobs:
                 job.status = "processing"
-                job.lease_expires_at = now + timedelta(seconds=self.lease_duration_seconds)
+                job.lease_expires_at = current + timedelta(seconds=self.lease_duration_seconds)
                 job.attempts += 1
                 conn.execute(
                     """INSERT INTO publication_queue(id,article_id,destination,status,priority,priority_level,source,attempts,max_attempts,last_error,lease_expires_at,next_attempt_at,created_at)
@@ -210,9 +221,30 @@ class PublicationQueueProcessor:
                 self.repositories.publication_queue.save_job(job)
                 continue
 
-            key = f"{article.id}:{publisher.name}"
+            version = article.news_timestamp.isoformat() if article.news_timestamp is not None else "unknown"
+            version_key = f"{article.id}:{publisher.name}:{version}"
+            legacy_key = f"{article.id}:{publisher.name}"
+            previous_delivery = next(
+                (
+                    record
+                    for record in self.repositories.delivery_history.all()
+                    if record.article_id == article.id and record.destination == publisher.name and record.success
+                ),
+                None,
+            )
             try:
-                result = PublishResult(True, publisher.name, external_id=article.id) if self.repositories.idempotency.seen(key) else publisher.publish(article)
+                legacy_delivery_is_current = (
+                    self.repositories.idempotency.seen(legacy_key)
+                    and (
+                        previous_delivery is None
+                        or article.news_timestamp is None
+                        or article.news_timestamp <= previous_delivery.created_at
+                    )
+                )
+                if self.repositories.idempotency.seen(version_key) or legacy_delivery_is_current:
+                    result = PublishResult(True, publisher.name, external_id=article.id, skipped=True)
+                else:
+                    result = publisher.publish(article)
             except Exception as exc:
                 result = PublishResult(False, publisher.name, error=str(exc))
 
@@ -224,15 +256,18 @@ class PublicationQueueProcessor:
                     attempts=job.attempts,
                     external_id=result.external_id,
                     error=result.error,
-                    created_at=now,
+                    created_at=current,
                 )
             )
 
             if result.success:
-                self.repositories.idempotency.mark(key)
+                self.repositories.idempotency.mark(legacy_key)
+                self.repositories.idempotency.mark(version_key)
                 job.status = "succeeded"
                 job.lease_expires_at = None
                 job.last_error = None
+                from dataclasses import replace
+                self.repositories.articles.save(replace(article, published_to_channel_at=current))
             else:
                 job.last_error = result.error or "Unknown publish error"
                 if job.attempts >= job.max_attempts:
@@ -240,7 +275,7 @@ class PublicationQueueProcessor:
                     job.lease_expires_at = None
                 else:
                     job.status = "retrying"
-                    job.next_attempt_at = now + timedelta(seconds=self.base_backoff_seconds * (2 ** (job.attempts - 1)))
+                    job.next_attempt_at = current + timedelta(seconds=self.base_backoff_seconds * (2 ** (job.attempts - 1)))
                     job.lease_expires_at = None
 
             self.repositories.publication_queue.save_job(job)
