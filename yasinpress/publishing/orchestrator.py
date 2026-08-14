@@ -44,11 +44,11 @@ class PublishingOrchestrator:
         self.idempotency = idempotency or IdempotencyStore()
 
     @staticmethod
-    def _version_key(article: Article, destination: str) -> str:
-        """Return an idempotency key scoped to the article's current news version."""
-        timestamp = article.news_timestamp
-        version = timestamp.isoformat() if timestamp is not None else "unknown"
-        return f"{article.id}:{destination}:{version}"
+    def _version_key(article: Article, destination: str) -> str | None:
+        """Return a versioned key only for articles carrying an explicit update timestamp."""
+        if article.updated_at is None:
+            return None
+        return f"{article.id}:{destination}:updated:{article.updated_at.isoformat()}"
 
     def publish(self, article: Article) -> PublishReport:
         results: list[PublishResult] = []
@@ -57,19 +57,12 @@ class PublishingOrchestrator:
             key = self._version_key(article, destination)
             legacy_key = f"{article.id}:{destination}"
 
-            # Keep legacy idempotency keys valid for already-published articles,
-            # but allow a newer source timestamp to create a new delivery version.
-            already_published_version = self.idempotency.seen(key)
-            legacy_delivery_is_current = (
-                article.published_to_channel_at is not None
-                and (
-                    article.news_timestamp is None
-                    or article.news_timestamp
-                    <= article.published_to_channel_at
-                )
-                and self.idempotency.seen(legacy_key)
-            )
-            if already_published_version or legacy_delivery_is_current:
+            # Preserve legacy idempotency for unchanged articles. An explicit
+            # updated_at creates a new delivery version and therefore bypasses
+            # the legacy key while remaining idempotent for repeated retries.
+            already_published_version = key is not None and self.idempotency.seen(key)
+            unchanged_legacy_delivery = key is None and self.idempotency.seen(legacy_key)
+            if already_published_version or unchanged_legacy_delivery:
                 results.append(
                     PublishResult(
                         True,
@@ -93,6 +86,6 @@ class PublishingOrchestrator:
                 )
             )
             if result.success:
-                self.idempotency.mark(key)
+                self.idempotency.mark(key or legacy_key)
                 self.idempotency.mark(legacy_key)
         return PublishReport(tuple(results))
