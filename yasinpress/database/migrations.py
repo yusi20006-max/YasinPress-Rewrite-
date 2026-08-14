@@ -1,6 +1,6 @@
 """Database migrations for durable article state."""
 
-import sqlite3
+import sqlite3  # noqa: I001
 
 
 _ARTICLE_COLUMNS = (
