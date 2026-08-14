@@ -1,14 +1,16 @@
+import sqlite3
 from datetime import UTC, datetime, timedelta
-import pytest
+
 from yasinpress.database.models import Article
-from yasinpress.database.sqlite import SQLiteArticleRepository
-from yasinpress.sources.feed import FeedItem, parse_rss
-from yasinpress.processing.normalization import normalize
-from yasinpress.processing.freshness import is_fresh
-from yasinpress.publishing.eitaa import EitaaPublisher
-from yasinpress.pipeline.runtime import ArticlePipeline
+from yasinpress.database.repositories import ArticleRepository
+from yasinpress.database.sqlite import SQLiteRepositories
 from yasinpress.pipeline.application import YasinPressApplication
+from yasinpress.pipeline.service import ProcessingService
+from yasinpress.processing.freshness import is_fresh
+from yasinpress.processing.normalization import normalize
 from yasinpress.publishing import PublishResult
+from yasinpress.publishing.eitaa import EitaaPublisher
+from yasinpress.sources.feed import FeedItem, parse_rss
 
 
 def test_rss_with_published_at():
@@ -125,7 +127,8 @@ def test_prevent_use_of_fetched_at_as_news_timestamp():
     assert article.age > timedelta(days=100)
 
 
-def test_message_rendering_with_timestamps():
+def test_message_rendering_with_timestamps(monkeypatch):
+    monkeypatch.setenv("YASINPRESS_TIMEZONE", "Asia/Tehran")
     pub = EitaaPublisher(token="tok", channel="chan")
 
     # 1. Normal published_at only
@@ -154,7 +157,6 @@ def test_message_rendering_with_timestamps():
 
 
 def test_duplicate_and_update_behavior():
-    from yasinpress.database.sqlite import SQLiteRepositories
     repos = SQLiteRepositories(":memory:")
 
     class MockEitaaPublisher(EitaaPublisher):
@@ -180,7 +182,6 @@ def test_duplicate_and_update_behavior():
 
     # 2. Second fetch with identical timestamp (duplicate entry)
     report2 = app.process_items([item1])
-    # Duplicate detector should ignore it, duplicate count increases
     assert report2.processing.duplicate_count == 1
 
     # 3. Fetch with UPDATED timestamp (newer)
@@ -192,14 +193,13 @@ def test_duplicate_and_update_behavior():
     report3 = app.process_items([item2])
     # Should detect as update (not a duplicate!) and persist/process it
     assert report3.processing.duplicate_count == 0
+    assert report3.processing.queued_count == 1
     assert report3.persisted_count == 1
 
-    # Cleanup repos
     repos.close()
 
 
 def test_published_to_channel_at_only_on_success():
-    from yasinpress.database.sqlite import SQLiteRepositories
     repos = SQLiteRepositories(":memory:")
 
     class MockSuccessPublisher(EitaaPublisher):
@@ -242,7 +242,6 @@ def test_published_to_channel_at_only_on_success():
 
 
 def test_unknown_to_known_timestamp_transition():
-    from yasinpress.database.sqlite import SQLiteRepositories
     repos = SQLiteRepositories(":memory:")
 
     class MockEitaaPublisher(EitaaPublisher):
@@ -273,3 +272,177 @@ def test_unknown_to_known_timestamp_transition():
     assert report2.persisted_count == 1
 
     repos.close()
+
+
+def test_select_fair_batch_sorting_on_news_timestamp():
+    class FakeHistory:
+        def all(self):
+            return ()
+
+    service = ProcessingService(
+        source="rss",
+        history=FakeHistory(),
+        max_publications_per_hour=3,
+    )
+
+    # Let's create articles with different news timestamps
+    now = datetime.now(UTC)
+    # Article A: news_ts = now - 5 min
+    art_a = Article(
+        id="A", title="A", url="https://example.com/a", content="Body", source="rss",
+        published_at=now - timedelta(minutes=5)
+    )
+    # Article B: news_ts = now - 1 min (newer!)
+    art_b = Article(
+        id="B", title="B", url="https://example.com/b", content="Body", source="rss",
+        published_at=now - timedelta(minutes=1)
+    )
+    # Article C: news_ts = None (epoch 0, earliest!)
+    art_c = Article(
+        id="C", title="C", url="https://example.com/c", content="Body", source="rss",
+        published_at=datetime.fromtimestamp(0, tz=UTC)
+    )
+
+    batch = service._select_fair_batch((art_a, art_b, art_c))
+    # Best sorting is B first, then A, then C
+    assert batch[0].id == "B"
+    assert batch[1].id == "A"
+    assert batch[2].id == "C"
+
+
+def test_ai_enrichment_preserves_lifecycle_timestamps():
+    class FakeAI:
+        def enrich(self, article):
+            return type("Result", (), {"success": True, "title": "AI Title", "content": "AI Body"})()
+
+    service = ProcessingService(source="rss", ai=FakeAI())
+    now = datetime.now(UTC)
+    art = Article(
+        id="A", title="A", url="https://example.com/a", content="Body", source="rss",
+        published_at=now - timedelta(minutes=10),
+        updated_at=now - timedelta(minutes=5),
+        fetched_at=now,
+        processed_at=now,
+        published_to_channel_at=now,
+    )
+    enriched = service._enrich(art)
+    assert enriched.title == "AI Title"
+    assert enriched.content == "AI Body"
+    assert enriched.published_at == art.published_at
+    assert enriched.updated_at == art.updated_at
+    assert enriched.fetched_at == art.fetched_at
+    assert enriched.processed_at == art.processed_at
+    assert enriched.published_to_channel_at == art.published_to_channel_at
+
+
+def test_processing_freshness_gate_under_update_policy():
+    repos = SQLiteRepositories(":memory:")
+
+    class MockEitaaPublisher(EitaaPublisher):
+        def publish(self, article):
+            return PublishResult(True, self.name)
+
+    app = YasinPressApplication(repositories=repos, publishers=[MockEitaaPublisher(token="t", channel="c")])
+    now = datetime.now(UTC)
+
+    # News published 13 hours ago (stale), but updated 5 minutes ago (fresh!)
+    item = FeedItem(
+        title="Fresh Update", url="https://example.com/update", content="Body",
+        published_at=now - timedelta(hours=13),
+        updated_at=now - timedelta(minutes=5)
+    )
+    report = app.process_items([item])
+    # Must be processed and queued!
+    assert report.persisted_count == 1
+    assert report.processing.old_count == 0
+    assert report.processing.queued_count == 1
+
+    repos.close()
+
+
+def test_normalization_preserves_stored_updated_at():
+    repos = SQLiteRepositories(":memory:")
+
+    now = datetime.now(UTC)
+    # 1. news item with updated_at T2
+    item1 = FeedItem(
+        title="News", url="https://example.com/news", content="Body",
+        published_at=now - timedelta(hours=2),
+        updated_at=now - timedelta(hours=1)
+    )
+    art1 = normalize(item1, "source", repository=repos.articles)
+    repos.articles.save(art1)
+
+    # 2. same news item without updated_at (incoming updated_at is None)
+    item2 = FeedItem(
+        title="News", url="https://example.com/news", content="Body",
+        published_at=now - timedelta(hours=2),
+        updated_at=None
+    )
+    art2 = normalize(item2, "source", repository=repos.articles)
+    # The existing updated_at (now - 1h) must be preserved!
+    assert art2.updated_at == now - timedelta(hours=1)
+
+    # 3. same news item with older updated_at (T1 < T2)
+    item3 = FeedItem(
+        title="News", url="https://example.com/news", content="Body",
+        published_at=now - timedelta(hours=2),
+        updated_at=now - timedelta(hours=1, minutes=30)
+    )
+    art3 = normalize(item3, "source", repository=repos.articles)
+    # Stored updated_at must NOT be downgraded/overwritten with older timestamp!
+    assert art3.updated_at == now - timedelta(hours=1)
+
+    repos.close()
+
+
+def test_sqlite_legacy_table_migration():
+    # Construct a legacy DB manually with published_at NOT NULL
+    db_file = ":memory:"
+    conn = sqlite3.connect(db_file)
+    conn.execute("""
+        CREATE TABLE articles (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            url TEXT NOT NULL,
+            content TEXT NOT NULL,
+            source TEXT NOT NULL,
+            published_at TEXT NOT NULL,
+            category TEXT
+        )
+    """)
+    # Insert a legacy record
+    conn.execute("""
+        INSERT INTO articles (id, title, url, content, source, published_at, category)
+        VALUES ('YP-legacy', 'Legacy Title', 'https://example.com/legacy', 'Body', 'rss', '2026-08-11T12:00:00+00:00', 'news')
+    """)
+    conn.commit()
+
+    # Initialize repository on top of this legacy connection
+    repo = ArticleRepository(conn)
+
+    # Verify migration executed and changed published_at column to be nullable
+    cursor = conn.execute("PRAGMA table_info(articles)")
+    columns = cursor.fetchall()
+    published_at_col = next(col for col in columns if col["name"] == "published_at")
+    # notnull should be 0 (nullable!)
+    assert int(published_at_col["notnull"]) == 0
+
+    # Verify legacy record still exists and can be retrieved
+    legacy_art = repo.get("YP-legacy")
+    assert legacy_art is not None
+    assert legacy_art.title == "Legacy Title"
+    assert legacy_art.published_at == datetime(2026, 8, 11, 12, 0, 0, tzinfo=UTC)
+
+    # Verify we can save an article with published_at = None
+    new_art = Article(
+        id="YP-null-pub", title="Nullable", url="https://example.com/null", content="Body", source="rss",
+        published_at=None
+    )
+    repo.save(new_art)
+
+    retrieved = repo.get("YP-null-pub")
+    assert retrieved is not None
+    assert retrieved.published_at is None
+
+    conn.close()

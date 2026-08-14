@@ -48,7 +48,7 @@ class ArticlePipeline:
         self.enricher = ArticleEnricher(ai)
 
     def process(self, item: FeedItem, *, source: str) -> ProcessedArticle | None:
-        article = normalize(item, source)
+        article = normalize(item, source, repository=self.repository)
         breaking = detect_breaking(
             article.title,
             article.content,
@@ -56,7 +56,7 @@ class ArticlePipeline:
         )
         # Breaking/urgent stories can bypass the normal freshness gate.
         if not is_fresh(
-            article.published_at,
+            article.news_timestamp,
             max_age=self.max_age,
             is_breaking=breaking.is_breaking,
             allow_breaking_exemption=self.allow_breaking_exemption,

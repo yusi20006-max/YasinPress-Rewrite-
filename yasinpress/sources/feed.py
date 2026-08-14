@@ -32,7 +32,7 @@ def _parse_date(raw: str | None) -> datetime | None:
         pass
     try:
         # ISO 8601 parsing
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(raw)
         return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
     except (TypeError, ValueError, IndexError):
         pass

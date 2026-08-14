@@ -37,6 +37,37 @@ class ArticleRepository:
                 self.connection.execute(f"ALTER TABLE articles ADD COLUMN {column} TEXT")
             except sqlite3.OperationalError:
                 pass
+
+        # Schema migration to make published_at nullable on legacy databases
+        cursor = self.connection.execute("PRAGMA table_info(articles)")
+        columns_info = cursor.fetchall()
+        published_at_notnull = False
+        for col in columns_info:
+            if col["name"] == "published_at" and int(col["notnull"]) == 1:
+                published_at_notnull = True
+                break
+
+        if published_at_notnull:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                self.connection.execute("""CREATE TABLE articles_backup (
+                    id TEXT PRIMARY KEY, title TEXT NOT NULL, url TEXT NOT NULL,
+                    content TEXT NOT NULL, source TEXT NOT NULL,
+                    published_at TEXT, category TEXT,
+                    event_id TEXT, received_at TEXT, lifecycle_state TEXT,
+                    ai_state TEXT, ai_error TEXT, source_metadata TEXT,
+                    updated_at TEXT, fetched_at TEXT, processed_at TEXT,
+                    published_to_channel_at TEXT)""")
+                existing_column_names = [col["name"] for col in columns_info]
+                cols_str = ", ".join(existing_column_names)
+                self.connection.execute(f"INSERT INTO articles_backup ({cols_str}) SELECT {cols_str} FROM articles")
+                self.connection.execute("DROP TABLE articles")
+                self.connection.execute("ALTER TABLE articles_backup RENAME TO articles")
+                self.connection.execute("COMMIT")
+            except Exception:
+                self.connection.execute("ROLLBACK")
+                raise
+
         self.connection.commit()
 
     def save(self, article: Article) -> None:

@@ -20,6 +20,7 @@ class PipelineResult:
 
 from typing import Any
 
+
 class ArticlePipeline:
     """Deterministic feed-item processing boundary."""
 

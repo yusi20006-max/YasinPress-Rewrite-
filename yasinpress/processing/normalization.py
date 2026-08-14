@@ -1,15 +1,13 @@
 """Article normalization."""
 
-import json
 from datetime import UTC, datetime
+from typing import Any
 
 from yasinpress.core.helpers import stable_hash
 from yasinpress.database.models import Article
 from yasinpress.processing.headline import normalize_headline
 from yasinpress.sources.feed import FeedItem
 
-
-from typing import Any
 
 def normalize(item: FeedItem, source: str, event_id: str | None = None, repository: Any = None) -> Article:
     """Convert a feed item into an article model with a formatted News ID."""
@@ -37,8 +35,19 @@ def normalize(item: FeedItem, source: str, event_id: str | None = None, reposito
                 existing_published_to_channel_at = existing.published_to_channel_at
                 existing_published_at = existing.published_at
                 existing_updated_at = existing.updated_at
-        except Exception:
+        except Exception:  # noqa: S110
             pass
+
+    # If incoming updated_at is missing/epoch, or older than existing, preserve the stored newer one
+    if existing_updated_at is not None:
+        if updated_val is None or updated_val == datetime.fromtimestamp(0, tz=UTC) or updated_val < existing_updated_at:
+            updated_val = existing_updated_at
+
+        # Re-evaluate news_ts after preserving updated_val
+        for dt_val in [updated_val, published_val]:
+            if dt_val is not None and dt_val != datetime.fromtimestamp(0, tz=UTC):
+                news_ts = dt_val if dt_val.tzinfo else dt_val.replace(tzinfo=UTC)
+                break
 
     # Resolve existing news_timestamp
     existing_news_ts = None

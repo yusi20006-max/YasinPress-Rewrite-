@@ -63,6 +63,7 @@ class ProcessingService:
         self.max_publications_per_hour = max_publications_per_hour
 
     def _enrich(self, article: Article) -> Article:
+        from dataclasses import replace
         if self.ai is None:
             return article
         if hasattr(self.ai, "enrich"):
@@ -71,29 +72,26 @@ class ProcessingService:
                 ai_state = "rewritten"
                 if result.title == article.title and result.content == article.content:
                     ai_state = "fallback"
-                return Article(
-                    id=article.id, title=result.title, url=article.url, content=result.content,
-                    source=article.source, published_at=article.published_at, category=article.category,
-                    event_id=article.event_id, received_at=article.received_at,
-                    lifecycle_state=article.lifecycle_state, ai_state=ai_state, ai_error=None,
-                    source_metadata=article.source_metadata,
+                return replace(
+                    article,
+                    title=result.title,
+                    content=result.content,
+                    ai_state=ai_state,
+                    ai_error=None,
                 )
-            return Article(
-                id=article.id, title=article.title, url=article.url, content=article.content,
-                source=article.source, published_at=article.published_at, category=article.category,
-                event_id=article.event_id, received_at=article.received_at,
-                lifecycle_state=article.lifecycle_state, ai_state="failed",
-                ai_error=getattr(result, "error", "AI failed"), source_metadata=article.source_metadata,
+            return replace(
+                article,
+                ai_state="failed",
+                ai_error=getattr(result, "error", "AI failed"),
             )
         rewrite = getattr(self.ai, "rewrite", None)
         if rewrite is not None:
             content = rewrite(article.content)
-            return Article(
-                id=article.id, title=article.title, url=article.url, content=content,
-                source=article.source, published_at=article.published_at, category=article.category,
-                event_id=article.event_id, received_at=article.received_at,
-                lifecycle_state=article.lifecycle_state, ai_state="rewritten", ai_error=None,
-                source_metadata=article.source_metadata,
+            return replace(
+                article,
+                content=content,
+                ai_state="rewritten",
+                ai_error=None,
             )
         return article
 
@@ -120,7 +118,12 @@ class ProcessingService:
 
     def _select_fair_batch(self, articles: tuple[Article, ...]) -> tuple[Article, ...]:
         buckets: dict[str, list[Article]] = defaultdict(list)
-        for article in sorted(articles, key=lambda item: item.published_at, reverse=True):
+        def get_sort_key(item: Article) -> datetime:
+            ts = item.news_timestamp
+            if ts is None:
+                return datetime.fromtimestamp(0, tz=UTC)
+            return ts
+        for article in sorted(articles, key=get_sort_key, reverse=True):
             buckets[article.source].append(article)
         selected: list[Article] = []
         while len(selected) < self.max_publications_per_hour and buckets:
@@ -198,12 +201,12 @@ class ProcessingService:
                     get_job_fn = getattr(self.publication_queue, "get_job", None)
                     existing_job = get_job_fn(job_id) if get_job_fn is not None else None
                     should_queue = False
-                    if existing_job is None:
+                    if existing_job is None or article.published_to_channel_at is None or (
+                        article.news_timestamp is not None
+                        and article.published_to_channel_at is not None
+                        and article.news_timestamp > article.published_to_channel_at + timedelta(seconds=5)
+                    ):
                         should_queue = True
-                    else:
-                        if article.news_timestamp is not None and article.published_to_channel_at is not None:
-                            if article.news_timestamp > article.published_to_channel_at:
-                                should_queue = True
 
                     if should_queue:
                         self.publication_queue.add_job(

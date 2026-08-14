@@ -38,6 +38,7 @@ class EitaaPublisher(Publisher):
         """Render the canonical Eitaa message without exposing the source URL."""
         import os
         from datetime import UTC, datetime
+
         from yasinpress.core.helpers import format_persian_datetime
 
         source = escape(self._source_label(article))
