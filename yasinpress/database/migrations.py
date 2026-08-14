@@ -1,7 +1,5 @@
 """Database migrations for durable article state."""
 
-from __future__ import annotations
-
 import re
 import sqlite3
 
