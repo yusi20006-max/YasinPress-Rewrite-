@@ -33,7 +33,7 @@ class YasinPressApplication:
         repositories: SQLiteRepositories | None = None,
         retry_policy: RetryPolicy | None = None,
         max_article_age_hours: float = 12.0,
-        max_publications_per_hour: int = 30,
+        max_publications_per_hour: int = 10,
     ) -> None:
         self.repositories = repositories
         self.publishers = tuple(publishers)
