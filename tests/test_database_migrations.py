@@ -55,9 +55,11 @@ def test_legacy_articles_migration_preserves_data_constraints_and_indexes():
     migrate(connection)
     migrate(connection)
 
-    published = connection.execute(
-        "SELECT notnull FROM pragma_table_info('articles') WHERE name='published_at'"
-    ).fetchone()[0]
+    published = next(
+        row[3]
+        for row in connection.execute("PRAGMA table_info(articles)").fetchall()
+        if row[1] == "published_at"
+    )
     assert published == 0
 
     row = connection.execute(
