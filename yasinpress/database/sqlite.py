@@ -33,7 +33,6 @@ class SQLiteArticleRepository:
             except sqlite3.OperationalError:
                 pass
 
-        # Schema migration to make published_at nullable on legacy databases
         cursor = self.connection.execute("PRAGMA table_info(articles)")
         columns_info = cursor.fetchall()
         published_at_notnull = False
@@ -207,7 +206,7 @@ class SQLitePublicationQueue:
     def add_job(self, job: PublicationJob) -> None:
         self.connection.execute(
             """INSERT INTO publication_queue(id,article_id,destination,status,priority,priority_level,source,attempts,max_attempts,last_error,lease_expires_at,next_attempt_at,created_at)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,attempts=excluded.attempts,last_error=excluded.last_error,lease_expires_at=excluded.lease_expires_at,next_attempt_at=excluded.next_attempt_at,created_at=excluded.created_at""",
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,attempts=excluded.attempts,last_error=excluded.last_error,lease_expires_at=excluded.lease_expires_at,next_attempt_at=excluded.next_attempt_at,created_at=CASE WHEN publication_queue.status IN ('succeeded','dead_letter') AND excluded.status='pending' THEN excluded.created_at ELSE publication_queue.created_at END""",
             (job.id,job.article_id,job.destination,job.status,job.priority,job.priority_level,job.source,job.attempts,job.max_attempts,job.last_error,
              job.lease_expires_at.isoformat() if job.lease_expires_at else None,job.next_attempt_at.isoformat() if job.next_attempt_at else None,job.created_at.isoformat()),
         )
