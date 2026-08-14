@@ -71,7 +71,7 @@ def test_atomic_claim_prevents_duplicate_claim(tmp_path):
                     break
                 with claimed_lock:
                     claimed_jobs.append(job.id)
-                time.sleep(0.001)  # tiny yield
+                time.sleep(0.001)
             repo.close()
         except Exception as e:
             errors.append(e)
@@ -91,7 +91,6 @@ def test_concurrent_workers_respect_global_unique_article_cap(tmp_path):
     db_file = str(tmp_path / "test_global_cap.db")
     init_repo = SQLiteRepositories(db_file)
     now = datetime.now(UTC)
-    # 40 articles, each with unique source to avoid source limits
     for i in range(40):
         create_article_and_job(init_repo, f"art_{i}", f"src_{i}", "pwa")
     init_repo.close()
@@ -124,7 +123,6 @@ def test_concurrent_workers_respect_source_unique_article_cap(tmp_path):
     db_file = str(tmp_path / "test_source_cap.db")
     init_repo = SQLiteRepositories(db_file)
     now = datetime.now(UTC)
-    # 15 articles from the same source
     for i in range(15):
         create_article_and_job(init_repo, f"art_{i}", "same_source", "pwa")
     init_repo.close()
@@ -157,7 +155,6 @@ def test_concurrent_workers_preserve_destination_fanout(tmp_path):
     db_file = str(tmp_path / "test_fanout.db")
     init_repo = SQLiteRepositories(db_file)
     now = datetime.now(UTC)
-    # 5 articles, each with separate jobs for eitaa, pwa, and rss
     for i in range(5):
         for dest in ("eitaa", "pwa", "rss"):
             create_article_and_job(init_repo, f"art_{i}", "src", dest)
@@ -187,8 +184,6 @@ def test_concurrent_workers_preserve_destination_fanout(tmp_path):
         t.join()
 
     assert not errors, f"Encountered worker errors: {errors}"
-    # There are 15 distinct job targets (5 articles * 3 destinations)
-    # Fan-out should be preserved: all of them should be published
     assert len(shared_published) == 15
     unique_combinations = set(shared_published)
     assert len(unique_combinations) == 15
@@ -198,7 +193,6 @@ def test_expired_lease_is_recoverable(tmp_path):
     db_file = str(tmp_path / "test_lease_recovery.db")
     init_repo = SQLiteRepositories(db_file)
     now = datetime.now(UTC)
-    # Enqueue 10 processing jobs with expired leases
     for i in range(10):
         init_repo.articles.save(Article(id=f"art_{i}", title="test", url=f"https://example.com/art_{i}", content="c", source="s"))
         init_repo.publication_queue.add_job(
@@ -236,7 +230,6 @@ def test_expired_lease_is_recoverable(tmp_path):
         t.join()
 
     assert not errors, f"Encountered worker errors: {errors}"
-    # The sum of recovered jobs across all threads must be exactly 10!
     assert sum(recovered_counts) == 10
 
 
@@ -247,7 +240,6 @@ def test_concurrent_processing_preserves_idempotency(tmp_path):
     create_article_and_job(init_repo, "art_1", "src", "pwa")
     init_repo.close()
 
-    # Pre-mark the idempotency key as seen
     repo = SQLiteRepositories(db_file)
     repo.idempotency.mark("art_1:pwa")
 
@@ -257,5 +249,80 @@ def test_concurrent_processing_preserves_idempotency(tmp_path):
     processor.process_cycle(now)
     repo.close()
 
-    # Since the key was already marked, publish should not have been called!
     assert len(shared_published) == 0
+
+
+def test_queue_engine_global_limit_counts_unique_articles_across_destinations(tmp_path):
+    db_file = str(tmp_path / "test_engine_unique_global_limit.db")
+    repo = SQLiteRepositories(db_file)
+    now = datetime.now(UTC)
+
+    for article_id in ("art_1", "art_2", "art_3"):
+        for destination in ("eitaa", "pwa", "rss"):
+            create_article_and_job(repo, article_id, f"source_{article_id}", destination)
+
+    engine = SQLitePublicationQueueEngine(
+        repo.connection,
+        QueueConfig(global_limit=2, source_limit=10),
+    )
+
+    claimed = []
+    for _ in range(10):
+        job = engine.claim_next(now)
+        if job is None:
+            break
+        claimed.append(job)
+
+    assert len(claimed) == 6
+    assert {job.article_id for job in claimed} == {"art_1", "art_2"}
+    assert {job.destination for job in claimed if job.article_id == "art_1"} == {"eitaa", "pwa", "rss"}
+    assert {job.destination for job in claimed if job.article_id == "art_2"} == {"eitaa", "pwa", "rss"}
+    repo.close()
+
+
+def test_queue_engine_source_limit_counts_unique_articles_across_destinations(tmp_path):
+    db_file = str(tmp_path / "test_engine_unique_source_limit.db")
+    repo = SQLiteRepositories(db_file)
+    now = datetime.now(UTC)
+
+    for article_id in ("art_1", "art_2"):
+        for destination in ("eitaa", "pwa", "rss"):
+            create_article_and_job(repo, article_id, "same_source", destination)
+
+    engine = SQLitePublicationQueueEngine(
+        repo.connection,
+        QueueConfig(global_limit=10, source_limit=1),
+    )
+
+    claimed = []
+    for _ in range(10):
+        job = engine.claim_next(now)
+        if job is None:
+            break
+        claimed.append(job)
+
+    assert len(claimed) == 3
+    assert {job.article_id for job in claimed} == {"art_1"}
+    assert {job.destination for job in claimed} == {"eitaa", "pwa", "rss"}
+    repo.close()
+
+
+def test_queue_engine_metrics_count_unique_articles(tmp_path):
+    db_file = str(tmp_path / "test_engine_unique_metrics.db")
+    repo = SQLiteRepositories(db_file)
+    now = datetime.now(UTC)
+
+    for destination in ("eitaa", "pwa"):
+        create_article_and_job(repo, "art_1", "source", destination)
+    engine = SQLitePublicationQueueEngine(repo.connection, QueueConfig(global_limit=5, source_limit=5))
+
+    for destination in ("eitaa", "pwa"):
+        job = engine.claim_next(now)
+        assert job is not None
+        assert job.destination == destination
+        engine.mark_success(job.id, now=now)
+
+    metrics = engine.metrics(now)
+    assert metrics["published_last_hour"] == 1
+    assert metrics["remaining_global_capacity"] == 4
+    repo.close()
