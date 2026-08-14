@@ -236,17 +236,21 @@ class ProcessingService:
         selected = self._select_fair_batch(undelivered)[:available]
         queued_count = max(0, len(undelivered) - len(selected))
         results: list[PublishResult] = []
+        updated_articles_map = {}
         for article in selected:
             report = self.publisher.publish(article)
             results.extend(report.results)
             if any(res.success for res in report.results):
                 from dataclasses import replace
                 article = replace(article, published_to_channel_at=datetime.now(UTC))
+                updated_articles_map[article.id] = article
                 if self.repository is not None:
                     self.repository.save(article)
 
+        final_articles = tuple(updated_articles_map.get(a.id, a) for a in articles)
+
         return ProcessingReport(
-            PipelineResult(len(articles), result.rejected, articles),
+            PipelineResult(len(articles), result.rejected, final_articles),
             PublishReport(tuple(results)),
             old_count=old_count,
             queued_count=queued_count,
