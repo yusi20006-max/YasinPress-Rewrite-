@@ -43,20 +43,43 @@ class PublishingOrchestrator:
         self.history = history or InMemoryDeliveryHistory()
         self.idempotency = idempotency or IdempotencyStore()
 
+    @staticmethod
+    def _version_key(article: Article, destination: str) -> str:
+        """Return an idempotency key scoped to the article's current news version."""
+        timestamp = article.news_timestamp
+        version = timestamp.isoformat() if timestamp is not None else "unknown"
+        return f"{article.id}:{destination}:{version}"
+
     def publish(self, article: Article) -> PublishReport:
         results: list[PublishResult] = []
         for publisher in self.publishers:
-            key = f"{article.id}:{publisher.publisher.name}"
-            if self.idempotency.seen(key):
+            destination = publisher.publisher.name
+            key = self._version_key(article, destination)
+            legacy_key = f"{article.id}:{destination}"
+
+            # Keep legacy idempotency keys valid for already-published articles,
+            # but allow a newer source timestamp to create a new delivery version.
+            already_published_version = self.idempotency.seen(key)
+            legacy_delivery_is_current = (
+                article.published_to_channel_at is not None
+                and (
+                    article.news_timestamp is None
+                    or article.news_timestamp
+                    <= article.published_to_channel_at
+                )
+                and self.idempotency.seen(legacy_key)
+            )
+            if already_published_version or legacy_delivery_is_current:
                 results.append(
                     PublishResult(
                         True,
-                        publisher.publisher.name,
+                        destination,
                         external_id=article.id,
                         skipped=True,
                     )
                 )
                 continue
+
             result = publisher.publish(article)
             results.append(result)
             self.history.add(
@@ -71,4 +94,5 @@ class PublishingOrchestrator:
             )
             if result.success:
                 self.idempotency.mark(key)
+                self.idempotency.mark(legacy_key)
         return PublishReport(tuple(results))
