@@ -40,7 +40,7 @@ class ProcessingService:
         max_article_age_hours: float = 12.0,
         breaking_max_article_age_hours: float = 24.0,
         allow_breaking_exemption: bool = True,
-        max_publications_per_hour: int = 30,
+        max_publications_per_hour: int = 10,
         publication_queue=None,
     ) -> None:
         self.ai = ai
