@@ -80,6 +80,10 @@ class ArticleEnricher:
             ai_error=None,
             ai_modified=True,
             source_metadata=metadata,
+            updated_at=article.updated_at,
+            fetched_at=article.fetched_at,
+            processed_at=article.processed_at,
+            published_to_channel_at=article.published_to_channel_at,
         )
         return EnrichmentResult(enriched, True, result.provider)
 
@@ -107,4 +111,8 @@ class ArticleEnricher:
             ai_error=ai_error,
             ai_modified=ai_modified,
             source_metadata=dict(article.source_metadata),
+            updated_at=article.updated_at,
+            fetched_at=article.fetched_at,
+            processed_at=article.processed_at,
+            published_to_channel_at=article.published_to_channel_at,
         )
