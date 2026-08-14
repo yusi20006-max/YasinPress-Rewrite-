@@ -112,17 +112,22 @@ class SQLitePublicationQueueEngine:
                 for jobs in sources.values():
                     jobs.sort(key=lambda item: item.created_at)
 
-            published_keys = {(record.article_id, record.destination) for record in recent_successes}
+            delivery_by_key = {
+                (record.article_id, record.destination): record
+                for record in recent_successes
+            }
 
-            # Continue fan-out for articles already consuming a slot. These destinations
-            # must not be blocked by the global/source limits because the article has
-            # already been counted once for the current hour.
+            # Continue fan-out for articles already consuming a slot. An update
+            # creates a newer job version, so it must be eligible even when the
+            # destination has a successful delivery for the previous version.
             for priority in sorted(by_priority, reverse=True):
                 sources = by_priority[priority]
                 for source in list(sources):
                     for job in sources[source]:
                         key = (job.article_id, job.destination)
-                        if job.article_id in consumed_article_ids and key not in published_keys:
+                        record = delivery_by_key.get(key)
+                        is_newer_version = record is None or job.created_at > record.created_at
+                        if job.article_id in consumed_article_ids and is_newer_version:
                             selected_job = job
                             break
                     if selected_job is not None:
@@ -142,7 +147,10 @@ class SQLitePublicationQueueEngine:
                                 continue
                             job = sources[source].pop(0)
                             key = (job.article_id, job.destination)
-                            if key in published_keys or job.article_id in consumed_article_ids:
+                            record = delivery_by_key.get(key)
+                            if record is not None and job.created_at <= record.created_at:
+                                continue
+                            if job.article_id in consumed_article_ids:
                                 continue
                             selected_job = job
                             progressed = True
@@ -195,6 +203,11 @@ class SQLitePublicationQueueEngine:
 
         key = f"{job.article_id}:{job.destination}"
         self.repositories.idempotency.mark(key)
+        article = self.repositories.articles.get(job.article_id)
+        if article is not None:
+            timestamp = article.news_timestamp
+            version = timestamp.isoformat() if timestamp is not None else "unknown"
+            self.repositories.idempotency.mark(f"{job.article_id}:{job.destination}:{version}")
 
         self.repositories.delivery_history.add(
             DeliveryRecord(
@@ -326,10 +339,20 @@ class SQLitePublicationQueueEngine:
             self.repositories.publication_queue.save_job(job)
             return PublishResult(False, job.destination, error="Publisher not found")
 
-        key = f"{article.id}:{publisher.name}"
+        version = article.news_timestamp.isoformat() if article.news_timestamp is not None else "unknown"
+        key = f"{article.id}:{publisher.name}:{version}"
+        legacy_key = f"{article.id}:{publisher.name}"
         try:
-            if self.repositories.idempotency.seen(key):
-                result = PublishResult(True, publisher.name, external_id=article.id)
+            legacy_delivery_is_current = (
+                article.published_to_channel_at is not None
+                and (
+                    article.news_timestamp is None
+                    or article.news_timestamp <= article.published_to_channel_at
+                )
+                and self.repositories.idempotency.seen(legacy_key)
+            )
+            if self.repositories.idempotency.seen(key) or legacy_delivery_is_current:
+                result = PublishResult(True, publisher.name, external_id=article.id, skipped=True)
             else:
                 result = publisher.publish(article)
         except Exception as exc:
