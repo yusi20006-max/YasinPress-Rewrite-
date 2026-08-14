@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from yasinpress.database.sqlite import SQLiteRepositories
 from yasinpress.publishing import PublishResult
@@ -26,8 +26,8 @@ class PublicationQueueProcessor:
             QueueConfig(
                 global_limit=max_global_per_hour,
                 source_limit=max_source_per_hour,
-                lease=__import__("datetime").timedelta(seconds=lease_duration_seconds),
-                retry_base=__import__("datetime").timedelta(seconds=base_backoff_seconds),
+                lease=timedelta(seconds=lease_duration_seconds),
+                retry_base=timedelta(seconds=base_backoff_seconds),
             ),
         )
 
