@@ -272,6 +272,7 @@ def test_queue_engine_global_limit_counts_unique_articles_across_destinations(tm
         if job is None:
             break
         claimed.append(job)
+        engine.mark_success(job.id, now=now)
 
     assert len(claimed) == 6
     assert {job.article_id for job in claimed} == {"art_1", "art_2"}
@@ -300,6 +301,7 @@ def test_queue_engine_source_limit_counts_unique_articles_across_destinations(tm
         if job is None:
             break
         claimed.append(job)
+        engine.mark_success(job.id, now=now)
 
     assert len(claimed) == 3
     assert {job.article_id for job in claimed} == {"art_1"}
