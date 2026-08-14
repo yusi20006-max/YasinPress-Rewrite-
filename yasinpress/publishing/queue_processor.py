@@ -183,8 +183,11 @@ class PublicationQueueProcessor:
                     continue
                 key = (job.article_id, job.destination)
                 previous = delivery_by_key.get(key)
-                if key in published_keys and (previous is None or job.created_at <= previous.created_at):
-                    continue
+                if key in published_keys:
+                    article = self.repositories.articles.get(job.article_id)
+                    news_timestamp = article.news_timestamp if article is not None else None
+                    if previous is not None and (news_timestamp is None or news_timestamp <= previous.created_at):
+                        continue
                 selected_jobs.append(job)
 
             selected_jobs.sort(key=lambda job: (-job.priority, job.created_at, job.source, job.destination))
@@ -221,11 +224,22 @@ class PublicationQueueProcessor:
             version = article.news_timestamp.isoformat() if article.news_timestamp is not None else "unknown"
             version_key = f"{article.id}:{publisher.name}:{version}"
             legacy_key = f"{article.id}:{publisher.name}"
+            previous_delivery = next(
+                (
+                    record
+                    for record in self.repositories.delivery_history.all()
+                    if record.article_id == article.id and record.destination == publisher.name and record.success
+                ),
+                None,
+            )
             try:
                 legacy_delivery_is_current = (
-                    article.published_to_channel_at is not None
-                    and (article.news_timestamp is None or article.news_timestamp <= article.published_to_channel_at)
-                    and self.repositories.idempotency.seen(legacy_key)
+                    self.repositories.idempotency.seen(legacy_key)
+                    and (
+                        previous_delivery is None
+                        or article.news_timestamp is None
+                        or article.news_timestamp <= previous_delivery.created_at
+                    )
                 )
                 if self.repositories.idempotency.seen(version_key) or legacy_delivery_is_current:
                     result = PublishResult(True, publisher.name, external_id=article.id, skipped=True)
@@ -252,11 +266,8 @@ class PublicationQueueProcessor:
                 job.status = "succeeded"
                 job.lease_expires_at = None
                 job.last_error = None
-                updated_article = article
-                if article.published_to_channel_at != current:
-                    from dataclasses import replace
-                    updated_article = replace(article, published_to_channel_at=current)
-                    self.repositories.articles.save(updated_article)
+                from dataclasses import replace
+                self.repositories.articles.save(replace(article, published_to_channel_at=current))
             else:
                 job.last_error = result.error or "Unknown publish error"
                 if job.attempts >= job.max_attempts:
