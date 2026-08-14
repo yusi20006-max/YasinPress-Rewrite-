@@ -14,7 +14,7 @@ from yasinpress.publishing.history import DeliveryRecord
 
 @dataclass(frozen=True)
 class QueueConfig:
-    global_limit: int = 30
+    global_limit: int = 10
     source_limit: int = 5
     lease: timedelta = timedelta(seconds=60)
     retry_base: timedelta = timedelta(seconds=2)
