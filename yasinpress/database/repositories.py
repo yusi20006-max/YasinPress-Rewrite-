@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
+from .migrations import migrate
 from .models import Article
 
 
@@ -15,64 +17,11 @@ class ArticleRepository:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self.connection = connection
         self.connection.row_factory = sqlite3.Row
-        self.connection.execute("""CREATE TABLE IF NOT EXISTS articles (
-            id TEXT PRIMARY KEY, title TEXT NOT NULL, url TEXT NOT NULL,
-            content TEXT NOT NULL, source TEXT NOT NULL,
-            published_at TEXT, category TEXT,
-            event_id TEXT, received_at TEXT, lifecycle_state TEXT,
-            ai_state TEXT, ai_error TEXT, source_metadata TEXT)""")
-        for column in [
-            "event_id",
-            "received_at",
-            "lifecycle_state",
-            "ai_state",
-            "ai_error",
-            "source_metadata",
-            "updated_at",
-            "fetched_at",
-            "processed_at",
-            "published_to_channel_at",
-        ]:
-            try:
-                self.connection.execute(f"ALTER TABLE articles ADD COLUMN {column} TEXT")
-            except sqlite3.OperationalError:
-                pass
-
-        # Schema migration to make published_at nullable on legacy databases
-        cursor = self.connection.execute("PRAGMA table_info(articles)")
-        columns_info = cursor.fetchall()
-        published_at_notnull = False
-        for col in columns_info:
-            if col["name"] == "published_at" and int(col["notnull"]) == 1:
-                published_at_notnull = True
-                break
-
-        if published_at_notnull:
-            try:
-                self.connection.execute("BEGIN IMMEDIATE")
-                self.connection.execute("""CREATE TABLE articles_backup (
-                    id TEXT PRIMARY KEY, title TEXT NOT NULL, url TEXT NOT NULL,
-                    content TEXT NOT NULL, source TEXT NOT NULL,
-                    published_at TEXT, category TEXT,
-                    event_id TEXT, received_at TEXT, lifecycle_state TEXT,
-                    ai_state TEXT, ai_error TEXT, source_metadata TEXT,
-                    updated_at TEXT, fetched_at TEXT, processed_at TEXT,
-                    published_to_channel_at TEXT)""")
-                existing_column_names = [col["name"] for col in columns_info]
-                cols_str = ", ".join(existing_column_names)
-                self.connection.execute(f"INSERT INTO articles_backup ({cols_str}) SELECT {cols_str} FROM articles")
-                self.connection.execute("DROP TABLE articles")
-                self.connection.execute("ALTER TABLE articles_backup RENAME TO articles")
-                self.connection.execute("COMMIT")
-            except Exception:
-                self.connection.execute("ROLLBACK")
-                raise
-
+        migrate(self.connection)
         self.connection.commit()
 
     def save(self, article: Article) -> None:
         """Insert or replace an article."""
-        import json
         metadata_str = json.dumps(article.source_metadata if article.source_metadata is not None else {})
         self.connection.execute(
             """INSERT INTO articles(
@@ -115,7 +64,6 @@ class ArticleRepository:
 
     @staticmethod
     def _row_to_article(row) -> Article:
-        import json
         def dt(name: str, default: datetime | None = None) -> datetime | None:
             try:
                 value = row[name]
@@ -164,8 +112,6 @@ class ArticleRepository:
             )
             """
         )
-        import json
-
         timestamp = str(report.get("timestamp") or datetime.now(UTC).isoformat())
         self.connection.execute(
             "INSERT OR REPLACE INTO operational_reports(timestamp, payload) VALUES (?, ?)",
@@ -175,8 +121,6 @@ class ArticleRepository:
 
     def recent_operational_reports(self, limit: int = 24) -> Iterable[dict[str, object]]:
         """Return the latest persisted hourly reports, newest first."""
-        import json
-
         rows = self.connection.execute(
             "SELECT payload FROM operational_reports ORDER BY timestamp DESC LIMIT ?",
             (max(1, limit),),
