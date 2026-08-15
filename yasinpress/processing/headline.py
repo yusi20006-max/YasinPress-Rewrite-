@@ -1,7 +1,7 @@
 """Headline normalization logic."""
 
-from html import unescape
 import re
+from html import unescape
 
 
 _HTML_TAG_RE = re.compile(r"<\s*/?\s*[A-Za-z][^>]*>")
