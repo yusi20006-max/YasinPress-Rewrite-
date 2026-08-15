@@ -19,27 +19,32 @@ def article(*, ai_modified: bool = False, title: str = "خبر آزمایشی", 
 def test_render_uses_plain_source_label_without_url_or_link_markup():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article())
-    assert "<b>خبر آزمایشی</b>" in rendered
+    assert "خبر آزمایشی" in rendered
     assert "متن خبر" in rendered
     assert "منبع: example.com" in rendered
-    assert "🕐" in rendered
+    assert "زمان خبر:" in rendered
     assert "https://" not in rendered
     assert "<a " not in rendered
+    assert "🚨" not in rendered
     assert "🤖" not in rendered
+    assert rendered.startswith("\u202b\u200f")
+    assert rendered.endswith("\u202c")
 
 
 def test_render_marks_only_ai_modified_articles():
     publisher = EitaaPublisher(token="token", channel="channel")
-    assert "🤖 <b>خبر آزمایشی</b>" in publisher.render(article(ai_modified=True))
-    assert "🤖" not in publisher.render(article(ai_modified=False))
+    assert "بازنویسی‌شده با هوش مصنوعی" in publisher.render(article(ai_modified=True))
+    assert "بازنویسی‌شده با هوش مصنوعی" not in publisher.render(article(ai_modified=False))
+    assert "🤖" not in publisher.render(article(ai_modified=True))
 
 
 def test_render_uses_breaking_header_for_fresh_severe_news():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(title="فوری: زلزله شدید"))
-    assert rendered.startswith("🚨 <b>خبر فوری</b>\n\n")
-    assert "<b>فوری: زلزله شدید</b>" in rendered
+    assert "خبر فوری" in rendered
+    assert "فوری: زلزله شدید" in rendered
     assert "منبع: example.com" in rendered
+    assert "🚨" not in rendered
     assert "https://" not in rendered
     assert "<a " not in rendered
 
@@ -47,5 +52,23 @@ def test_render_uses_breaking_header_for_fresh_severe_news():
 def test_render_escapes_article_content():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(title="A < B", content="x > y & z"))
-    assert "<b>A &lt; B</b>" in rendered
+    assert "A &lt; B" in rendered
     assert "x &gt; y &amp; z" in rendered
+
+
+def test_mixed_script_title_keeps_latin_isolated():
+    publisher = EitaaPublisher(token="token", channel="channel")
+    rendered = publisher.render(article(title="خبر از BBC و CNN"))
+    assert "\u2066BBC\u2069" in rendered
+    assert "\u2066CNN\u2069" in rendered
+    assert "\u202b" in rendered
+    assert "\u202c" in rendered
+
+
+def test_render_removes_title_html_and_markdown_artifacts():
+    publisher = EitaaPublisher(token="token", channel="channel")
+    rendered = publisher.render(article(title="<b>خبر فوری</b> `CODE`"))
+    assert "خبر فوری" in rendered
+    assert "<b><b>" not in rendered
+    assert "CODE" not in rendered
+    assert "`" not in rendered
