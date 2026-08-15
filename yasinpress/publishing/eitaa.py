@@ -12,15 +12,15 @@ from yasinpress.database.models import Article
 from yasinpress.processing.breaking import detect_breaking
 from yasinpress.publishing import Publisher, PublishResult
 
-_HTML_TAG_RE = re.compile(r"<\s*/?\s*[A-Za-z][^>]*>")
-_MARKDOWN_CODE_RE = re.compile(r"`{1,3}")
+_FORMATTING_TAG_RE = re.compile(r"<\s*/?\s*(?:b|strong|i|em|u|mark)\b[^>]*>", re.IGNORECASE)
+_MARKDOWN_CODE_SPAN_RE = re.compile(r"`{1,3}[^`\n]*`{1,3}")
 
 
 def _clean_title(title: str) -> str:
-    """Remove title-only HTML/Markdown artifacts while preserving text content."""
+    """Remove title formatting artifacts while preserving unsafe text for escaping."""
     title = unescape(title)
-    title = _HTML_TAG_RE.sub(" ", title)
-    title = _MARKDOWN_CODE_RE.sub("", title)
+    title = _FORMATTING_TAG_RE.sub(" ", title)
+    title = _MARKDOWN_CODE_SPAN_RE.sub("", title)
     return re.sub(r"\s+", " ", title).strip()
 
 
