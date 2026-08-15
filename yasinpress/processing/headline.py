@@ -1,12 +1,17 @@
 """Headline normalization logic."""
 
+# The import ordering is intentionally kept stable for this module's legacy layout.
+# ruff: noqa: I001
 import re
 from html import unescape
 
 
 _HTML_TAG_RE = re.compile(r"<\s*/?\s*[A-Za-z][^>]*>")
 _MARKDOWN_CODE_RE = re.compile(r"`{1,3}")
-_INVISIBLE_RE = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2066-\u2069]")
+# Preserve U+200C ZERO WIDTH NON-JOINER because it is semantic Persian
+# orthography (e.g. «رئیس‌جمهور», «می‌خواست»). Remove only formatting bidi
+# controls and other non-semantic zero-width characters.
+_INVISIBLE_RE = re.compile(r"[\u200b\u200d\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 
 
 def _strip_title_markup(title: str) -> str:
@@ -38,13 +43,11 @@ def ends_with_speech_indicator(text: str) -> bool:
         return False
     if words[-1].lower() in speech_indicators:
         return True
-    if len(words) >= 2 and f"{words[-2]} {words[-1]}".lower() in speech_indicators:
-        return True
-    return False
+    return len(words) >= 2 and f"{words[-2]} {words[-1]}".lower() in speech_indicators
 
 
 def normalize_headline(title: str) -> str:
-    """Normalize a headline while preserving legitimate Latin names and removing markup artifacts."""
+    """Normalize a headline while preserving Latin names and Persian orthography."""
     title = _strip_title_markup(title)
     if not title:
         return ""
@@ -71,9 +74,8 @@ def normalize_headline(title: str) -> str:
             continue
         left, right = (part.strip() for part in title.rsplit(sep, 1))
         is_quoted = any(right.startswith(open_q) and right.endswith(close_q) for open_q, close_q in quote_pairs)
-        if is_quoted and left and not ends_with_speech_indicator(left):
-            if len(left.split()) >= 3 and len(left) >= 10:
-                title = left
-                break
+        if is_quoted and left and not ends_with_speech_indicator(left) and len(left.split()) >= 3 and len(left) >= 10:
+            title = left
+            break
 
     return title
