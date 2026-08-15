@@ -6,7 +6,10 @@ from html import unescape
 
 _HTML_TAG_RE = re.compile(r"<\s*/?\s*[A-Za-z][^>]*>")
 _MARKDOWN_CODE_RE = re.compile(r"`{1,3}")
-_INVISIBLE_RE = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2066-\u2069]")
+# Preserve U+200C ZERO WIDTH NON-JOINER because it is semantic Persian
+# orthography (e.g. «رئیس‌جمهور», «می‌خواست»). Remove only formatting bidi
+# controls and other non-semantic zero-width characters.
+_INVISIBLE_RE = re.compile(r"[\u200b\u200d\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 
 
 def _strip_title_markup(title: str) -> str:
@@ -44,7 +47,7 @@ def ends_with_speech_indicator(text: str) -> bool:
 
 
 def normalize_headline(title: str) -> str:
-    """Normalize a headline while preserving legitimate Latin names and removing markup artifacts."""
+    """Normalize a headline while preserving Latin names and Persian orthography."""
     title = _strip_title_markup(title)
     if not title:
         return ""
