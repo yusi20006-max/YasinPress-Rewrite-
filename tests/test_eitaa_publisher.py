@@ -27,24 +27,25 @@ def test_render_uses_plain_source_label_without_url_or_link_markup():
     assert "<a " not in rendered
     assert "🚨" not in rendered
     assert "🤖" not in rendered
-    assert rendered.startswith("\u202b\u200f")
-    assert rendered.endswith("\u202c")
+    assert "\u202b" not in rendered
+    assert "\u202c" not in rendered
+    assert "\u200f" not in rendered
 
 
 def test_render_marks_only_ai_modified_articles():
     publisher = EitaaPublisher(token="token", channel="channel")
+    assert "🤖" in publisher.render(article(ai_modified=True))
     assert "بازنویسی‌شده با هوش مصنوعی" in publisher.render(article(ai_modified=True))
+    assert "🤖" not in publisher.render(article(ai_modified=False))
     assert "بازنویسی‌شده با هوش مصنوعی" not in publisher.render(article(ai_modified=False))
-    assert "🤖" not in publisher.render(article(ai_modified=True))
 
 
 def test_render_uses_breaking_header_for_fresh_severe_news():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(title="فوری: زلزله شدید"))
-    assert "خبر فوری" in rendered
-    assert "فوری: زلزله شدید" in rendered
+    assert rendered.startswith("🚨 <b>خبر فوری</b>\n\n")
+    assert "<b>فوری: زلزله شدید</b>" in rendered
     assert "منبع: example.com" in rendered
-    assert "🚨" not in rendered
     assert "https://" not in rendered
     assert "<a " not in rendered
 
@@ -56,13 +57,12 @@ def test_render_escapes_article_content():
     assert "x &gt; y &amp; z" in rendered
 
 
-def test_mixed_script_title_keeps_latin_isolated():
+def test_mixed_script_title_remains_plain_and_deterministic():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(title="خبر از BBC و CNN"))
-    assert "\u2066BBC\u2069" in rendered
-    assert "\u2066CNN\u2069" in rendered
-    assert "\u202b" in rendered
-    assert "\u202c" in rendered
+    assert "خبر از BBC و CNN" in rendered
+    assert "\u2066" not in rendered
+    assert "\u2069" not in rendered
 
 
 def test_render_removes_title_html_and_markdown_artifacts():
