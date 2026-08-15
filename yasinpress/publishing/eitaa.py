@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import os
+import re
 from datetime import UTC, datetime
-from html import escape
+from html import escape, unescape
 from urllib.parse import urlparse
 
 import httpx
@@ -10,6 +11,17 @@ import httpx
 from yasinpress.database.models import Article
 from yasinpress.processing.breaking import detect_breaking
 from yasinpress.publishing import Publisher, PublishResult
+
+_HTML_TAG_RE = re.compile(r"<\s*/?\s*[A-Za-z][^>]*>")
+_MARKDOWN_CODE_RE = re.compile(r"`{1,3}")
+
+
+def _clean_title(title: str) -> str:
+    """Remove title-only HTML/Markdown artifacts while preserving text content."""
+    title = unescape(title)
+    title = _HTML_TAG_RE.sub(" ", title)
+    title = _MARKDOWN_CODE_RE.sub("", title)
+    return re.sub(r"\s+", " ", title).strip()
 
 
 class EitaaPublisher(Publisher):
@@ -53,6 +65,7 @@ class EitaaPublisher(Publisher):
         from yasinpress.core.helpers import format_persian_datetime
 
         source = escape(self._source_label(article))
+        title = escape(_clean_title(article.title))
         breaking = detect_breaking(
             article.title,
             article.content,
@@ -64,7 +77,7 @@ class EitaaPublisher(Publisher):
             lines.extend(["🚨 <b>خبر فوری</b>", ""])
 
         lines.extend([
-            f"<b>{escape(article.title)}</b>",
+            f"<b>{title}</b>",
             "",
             escape(article.content),
         ])
