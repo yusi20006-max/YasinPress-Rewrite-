@@ -1,7 +1,9 @@
 """Headline normalization logic."""
 
+# The import ordering is intentionally kept stable for this module's legacy layout.
+# ruff: noqa: I001
 import re
-from html import unescape  # noqa: I001
+from html import unescape
 
 
 _HTML_TAG_RE = re.compile(r"<\s*/?\s*[A-Za-z][^>]*>")
