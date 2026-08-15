@@ -4,9 +4,6 @@ from yasinpress.database.models import Article
 from yasinpress.publishing.eitaa import EitaaPublisher
 
 
-# Regression contract: serialized Eitaa output must not contain bidi control characters.
-
-
 def article(*, ai_modified: bool = False, title: str = "خبر آزمایشی", content: str = "متن خبر") -> Article:
     return Article(
         id="YP-000001",
