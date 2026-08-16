@@ -78,7 +78,6 @@ def test_time_and_ai_blocks_are_persian_led():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(ai_modified=True))
     assert "زمان خبر:" in rendered
-    # emoji trails the Persian label
     assert "🕐" in rendered
     assert not any(
         line.lstrip().startswith("🕐") for line in rendered.splitlines() if line.strip()
