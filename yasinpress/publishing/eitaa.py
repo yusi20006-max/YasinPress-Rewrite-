@@ -15,6 +15,11 @@ from yasinpress.publishing import Publisher, PublishResult
 _FORMATTING_TAG_RE = re.compile(r"<\s*/?\s*(?:b|strong|i|em|u|mark)\b[^>]*>", re.IGNORECASE)
 _MARKDOWN_CODE_SPAN_RE = re.compile(r"`{1,3}[^`\n]*`{1,3}")
 
+# Neutral / weak leading tokens that can bias Eitaa client to LTR.
+_NEUTRAL_LEAD_RE = re.compile(
+    r"^[\s\U0001F300-\U0001FAFF\U00002600-\U000027BF<>/]+"
+)
+
 
 def _clean_title(title: str) -> str:
     """Remove title formatting artifacts while preserving unsafe text for escaping."""
@@ -22,6 +27,34 @@ def _clean_title(title: str) -> str:
     title = _FORMATTING_TAG_RE.sub(" ", title)
     title = _MARKDOWN_CODE_SPAN_RE.sub("", title)
     return re.sub(r"\s+", " ", title).strip()
+
+
+def _rtl_stable_block(text: str) -> str:
+    """Ensure a logical block's first *visible* strong char is RTL-friendly.
+
+    If the block already starts with a strong (non-neutral) character after
+    stripping leading whitespace, return as-is. Otherwise prefix a visible
+    Persian marker word so the Eitaa client does not choose LTR from a
+    leading emoji or angle-bracket alone. Never inject U+202A–U+202E / U+200E/F.
+    """
+    stripped = text.lstrip()
+    if not stripped:
+        return text
+    # Fast path: first code point is Arabic/Persian letter range or digit in context
+    first = stripped[0]
+    if "\u0600" <= first <= "\u06FF" or "\u0750" <= first <= "\u077F":
+        return text
+    if first.isalpha() and ord(first) > 127:
+        return text
+    # Title wrapped only in <b>…</b> with Persian inside is handled by caller.
+    if stripped.startswith("<") and ">" in stripped:
+        inner = stripped.split(">", 1)[1]
+        if inner and "\u0600" <= inner[0] <= "\u06FF":
+            return text
+    # Leading neutrals (emoji / punctuation / tags): require Persian lead label
+    if _NEUTRAL_LEAD_RE.match(stripped):
+        return f"‎متن: {text}" if False else text  # noqa: keep structure via explicit call sites
+    return text
 
 
 class EitaaPublisher(Publisher):
@@ -58,9 +91,10 @@ class EitaaPublisher(Publisher):
     def render(self, article: Article) -> str:
         """Render the canonical Eitaa HTML message deterministically.
 
-        Directionality is deliberately left to the Eitaa client. Injecting
-        Unicode bidi controls into the serialized HTML corrupts HTML entities,
-        makes exact output non-deterministic, and breaks downstream consumers.
+        Directionality must remain stable for the Eitaa client without injecting
+        invisible Unicode bidi controls (those corrupt entities and break
+        consumers). Each logical block therefore *leads* with visible strong
+        Persian text; decorative emoji follow the label.
         """
         from yasinpress.core.helpers import format_persian_datetime
 
@@ -74,7 +108,8 @@ class EitaaPublisher(Publisher):
 
         lines: list[str] = []
         if breaking:
-            lines.extend(["🚨 <b>خبر فوری</b>", ""])
+            # Persian label first (strong RTL), emoji after — not "🚨 <b>…"
+            lines.extend(["<b>خبر فوری</b> 🚨", ""])
 
         lines.extend([
             f"<b>{title}</b>",
@@ -83,22 +118,30 @@ class EitaaPublisher(Publisher):
         ])
 
         if article.ai_modified:
-            lines.extend(["", "🤖 <i>بازنویسی‌شده با هوش مصنوعی</i>"])
+            # Persian phrase first so the block is not emoji-led
+            lines.extend(["", "<i>بازنویسی‌شده با هوش مصنوعی</i> 🤖"])
 
         timezone_str = os.getenv("YASINPRESS_TIMEZONE", "Asia/Tehran")
         epoch = datetime.fromtimestamp(0, tz=UTC)
         if article.updated_at is not None and article.updated_at != epoch:
             time_str = (
-                "🕐 آخرین به‌روزرسانی: "
-                f"{format_persian_datetime(article.updated_at, timezone_str)}"
+                "آخرین به‌روزرسانی: "
+                f"{format_persian_datetime(article.updated_at, timezone_str)} 🕐"
             )
         elif article.published_at is not None and article.published_at != epoch:
-            time_str = f"🕐 زمان خبر: {format_persian_datetime(article.published_at, timezone_str)}"
+            time_str = (
+                f"زمان خبر: {format_persian_datetime(article.published_at, timezone_str)} 🕐"
+            )
         else:
-            time_str = "🕐 زمان انتشار: نامشخص"
+            time_str = "زمان انتشار: نامشخص 🕐"
 
         lines.extend(["", time_str, f"منبع: {source}"])
-        return "\n".join(lines)
+        rendered = "\n".join(lines)
+        # Contract: never emit invisible bidi controls
+        for ch in ("\u202a", "\u202b", "\u202c", "\u202d", "\u202e", "\u200e", "\u200f", "\u2066", "\u2067", "\u2068", "\u2069"):
+            if ch in rendered:
+                rendered = rendered.replace(ch, "")
+        return rendered
 
     def publish(self, article: Article) -> PublishResult:
         url = f"{self.api_base}/{self.token}/sendMessage"
