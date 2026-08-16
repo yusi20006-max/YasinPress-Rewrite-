@@ -3,6 +3,10 @@ from datetime import UTC, datetime, timedelta
 from yasinpress.database.models import Article
 from yasinpress.publishing.eitaa import EitaaPublisher
 
+_LT = chr(38) + "lt;"
+_GT = chr(38) + "gt;"
+_AMP = chr(38) + "amp;"
+
 
 def article(*, ai_modified: bool = False, title: str = "خبر آزمایشی", content: str = "متن خبر") -> Article:
     return Article(
@@ -53,8 +57,8 @@ def test_render_uses_breaking_header_for_fresh_severe_news():
 def test_render_escapes_article_content():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(title="A < B", content="x > y & z"))
-    assert "A < B" in rendered
-    assert "x > y & z" in rendered
+    assert "A " + _LT + " B" in rendered
+    assert "x " + _GT + " y " + _AMP + " z" in rendered
 
 
 def test_mixed_script_title_remains_plain_and_deterministic():
