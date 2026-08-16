@@ -14,10 +14,18 @@ from yasinpress.publishing import Publisher, PublishResult
 
 _FORMATTING_TAG_RE = re.compile(r"<\s*/?\s*(?:b|strong|i|em|u|mark)\b[^>]*>", re.IGNORECASE)
 _MARKDOWN_CODE_SPAN_RE = re.compile(r"`{1,3}[^`\n]*`{1,3}")
-
-# Neutral / weak leading tokens that can bias Eitaa client to LTR.
-_NEUTRAL_LEAD_RE = re.compile(
-    r"^[\s\U0001F300-\U0001FAFF\U00002600-\U000027BF<>/]+"
+_BIDI_CONTROLS = (
+    "\u202a",
+    "\u202b",
+    "\u202c",
+    "\u202d",
+    "\u202e",
+    "\u200e",
+    "\u200f",
+    "\u2066",
+    "\u2067",
+    "\u2068",
+    "\u2069",
 )
 
 
@@ -27,34 +35,6 @@ def _clean_title(title: str) -> str:
     title = _FORMATTING_TAG_RE.sub(" ", title)
     title = _MARKDOWN_CODE_SPAN_RE.sub("", title)
     return re.sub(r"\s+", " ", title).strip()
-
-
-def _rtl_stable_block(text: str) -> str:
-    """Ensure a logical block's first *visible* strong char is RTL-friendly.
-
-    If the block already starts with a strong (non-neutral) character after
-    stripping leading whitespace, return as-is. Otherwise prefix a visible
-    Persian marker word so the Eitaa client does not choose LTR from a
-    leading emoji or angle-bracket alone. Never inject U+202A–U+202E / U+200E/F.
-    """
-    stripped = text.lstrip()
-    if not stripped:
-        return text
-    # Fast path: first code point is Arabic/Persian letter range or digit in context
-    first = stripped[0]
-    if "\u0600" <= first <= "\u06FF" or "\u0750" <= first <= "\u077F":
-        return text
-    if first.isalpha() and ord(first) > 127:
-        return text
-    # Title wrapped only in <b>…</b> with Persian inside is handled by caller.
-    if stripped.startswith("<") and ">" in stripped:
-        inner = stripped.split(">", 1)[1]
-        if inner and "\u0600" <= inner[0] <= "\u06FF":
-            return text
-    # Leading neutrals (emoji / punctuation / tags): require Persian lead label
-    if _NEUTRAL_LEAD_RE.match(stripped):
-        return f"‎متن: {text}" if False else text  # noqa: keep structure via explicit call sites
-    return text
 
 
 class EitaaPublisher(Publisher):
@@ -137,8 +117,7 @@ class EitaaPublisher(Publisher):
 
         lines.extend(["", time_str, f"منبع: {source}"])
         rendered = "\n".join(lines)
-        # Contract: never emit invisible bidi controls
-        for ch in ("\u202a", "\u202b", "\u202c", "\u202d", "\u202e", "\u200e", "\u200f", "\u2066", "\u2067", "\u2068", "\u2069"):
+        for ch in _BIDI_CONTROLS:
             if ch in rendered:
                 rendered = rendered.replace(ch, "")
         return rendered
