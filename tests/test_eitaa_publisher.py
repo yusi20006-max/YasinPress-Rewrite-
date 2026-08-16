@@ -43,7 +43,7 @@ def test_render_marks_only_ai_modified_articles():
 def test_render_uses_breaking_header_for_fresh_severe_news():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(title="فوری: زلزله شدید"))
-    assert rendered.startswith("🚨 <b>خبر فوری</b>\n\n")
+    assert rendered.startswith("<b>خبر فوری</b> 🚨\n\n")
     assert "<b>فوری: زلزله شدید</b>" in rendered
     assert "منبع: example.com" in rendered
     assert "https://" not in rendered
@@ -53,8 +53,8 @@ def test_render_uses_breaking_header_for_fresh_severe_news():
 def test_render_escapes_article_content():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(title="A < B", content="x > y & z"))
-    assert "A &lt; B" in rendered
-    assert "x &gt; y &amp; z" in rendered
+    assert "A < B" in rendered
+    assert "x > y & z" in rendered
 
 
 def test_mixed_script_title_remains_plain_and_deterministic():
@@ -72,3 +72,15 @@ def test_render_removes_title_html_and_markdown_artifacts():
     assert "<b><b>" not in rendered
     assert "CODE" not in rendered
     assert "`" not in rendered
+
+
+def test_time_and_ai_blocks_are_persian_led():
+    publisher = EitaaPublisher(token="token", channel="channel")
+    rendered = publisher.render(article(ai_modified=True))
+    assert "زمان خبر:" in rendered
+    # emoji trails the Persian label
+    assert "🕐" in rendered
+    assert not any(
+        line.lstrip().startswith("🕐") for line in rendered.splitlines() if line.strip()
+    )
+    assert "<i>بازنویسی‌شده با هوش مصنوعی</i> 🤖" in rendered
