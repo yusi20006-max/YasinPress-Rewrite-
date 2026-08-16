@@ -16,6 +16,8 @@ _BIDI = (
     "\u2068",
     "\u2069",
 )
+_ESC_LT = chr(38) + "lt;"
+_ESC_GT = chr(38) + "gt;"
 
 
 def article(*, ai_modified: bool = False, title: str = "عنوان آزمایشی") -> Article:
@@ -79,7 +81,7 @@ def test_html_is_escaped():
     )
     rendered = publisher().render(item)
     assert "<script>" not in rendered
-    assert "<script>" in rendered
+    assert _ESC_LT + "script" + _ESC_GT in rendered
 
 
 def test_no_invisible_bidi_controls_in_serialized_html():
