@@ -45,11 +45,10 @@ class PublishingOrchestrator:
 
     @staticmethod
     def _version_key(article: Article, destination: str) -> str | None:
-        """Return the canonical delivery version used by direct and queued paths."""
-        version = article.news_timestamp
-        if version is None:
+        """Return a delivery version only for an explicit article update."""
+        if article.updated_at is None:
             return None
-        return f"{article.id}:{destination}:version:{version.isoformat()}"
+        return f"{article.id}:{destination}:version:{article.updated_at.isoformat()}"
 
     def publish(self, article: Article) -> PublishReport:
         results: list[PublishResult] = []
@@ -58,9 +57,9 @@ class PublishingOrchestrator:
             key = self._version_key(article, destination)
             legacy_key = f"{article.id}:{destination}"
 
-            # Preserve legacy idempotency for unchanged articles. A canonical
-            # news timestamp creates a new delivery version while repeated
-            # delivery of the same version remains idempotent.
+            # Preserve legacy idempotency for unchanged articles. An explicit
+            # updated_at creates a new delivery version while repeated retries
+            # of that same version remain idempotent.
             already_published_version = key is not None and self.idempotency.seen(key)
             unchanged_legacy_delivery = key is None and self.idempotency.seen(legacy_key)
             if already_published_version or unchanged_legacy_delivery:
