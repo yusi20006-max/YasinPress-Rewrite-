@@ -49,6 +49,7 @@ def test_enabled_factory_returns_resilient_provider_and_rewrites(monkeypatch):
     provider = create_ai_provider(
         AIConfig(
             enabled=True,
+            provider="openai-compatible",
             base_url="https://example.com/v1",
             model="test",
             api_key_env="TEST_AI_KEY",
