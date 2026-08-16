@@ -51,7 +51,6 @@ def test_breaking_marker_is_emitted_for_fresh_severe_news():
     rendered = publisher().render(
         article(title="فوری: زلزله شدید در تهران")
     )
-    # Persian-strong lead, emoji after (not emoji-led)
     assert rendered.startswith("<b>خبر فوری</b> 🚨\n\n")
     assert "<b>فوری: زلزله شدید در تهران</b>" in rendered
 
@@ -96,6 +95,5 @@ def test_marker_blocks_are_not_emoji_led():
         stripped = line.lstrip()
         if not stripped:
             continue
-        # Allowed: Persian letter, digit, or HTML tag whose inner text is Persian
         if stripped[0] in "🚨🤖🕐":
             raise AssertionError(f"emoji-led block: {stripped!r}")
