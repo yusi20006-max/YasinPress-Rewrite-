@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
 from yasinpress.ai.base import AIProvider
@@ -25,7 +25,7 @@ class ProcessingReport:
 
 
 class ProcessingService:
-    """Application service joining processing, freshness filtering, fair publishing, and idempotency."""
+    """Application service joining processing, freshness filtering, publishing, and idempotency."""
 
     def __init__(
         self,
@@ -55,15 +55,14 @@ class ProcessingService:
         )
         self.history = history
         self.max_age = timedelta(hours=max_article_age_hours)
-        # Breaking news follows the same 12-hour freshness contract. Keep the
-        # legacy constructor arguments for compatibility, but do not allow
-        # them to create a freshness exemption.
+        # Keep legacy constructor arguments for compatibility. Freshness is
+        # intentionally strict for every article, including breaking news.
         self.breaking_max_age = self.max_age
         self.allow_breaking_exemption = False
         self.max_publications_per_hour = max_publications_per_hour
 
     def _enrich(self, article: Article) -> Article:
-        from dataclasses import replace
+        """Enrich only articles that already passed freshness filtering."""
         if self.ai is None:
             return article
         if hasattr(self.ai, "enrich"):
@@ -86,25 +85,31 @@ class ProcessingService:
             )
         rewrite = getattr(self.ai, "rewrite", None)
         if rewrite is not None:
-            content = rewrite(article.content)
             return replace(
                 article,
-                content=content,
+                content=rewrite(article.content),
                 ai_state="rewritten",
                 ai_error=None,
             )
         return article
 
+    @staticmethod
+    def _fresh(article: Article, now: datetime, max_age: timedelta) -> bool:
+        """Return whether an article has a valid news timestamp within the age window."""
+        if article.lifecycle_state == "timestamp_unknown":
+            return False
+        timestamp = article.news_timestamp
+        if timestamp is None:
+            return False
+        timestamp = timestamp.replace(tzinfo=UTC) if timestamp.tzinfo is None else timestamp.astimezone(UTC)
+        return timestamp >= now - max_age
+
     def _fully_delivered(self, article: Article) -> bool:
         """Return true only when every configured destination already has this article."""
         if article.published_to_channel_at is None:
             return False
-
-        if article.news_timestamp is not None and article.published_to_channel_at is not None:
-            from datetime import timedelta
-            if article.news_timestamp > article.published_to_channel_at + timedelta(seconds=5):
-                return False
-
+        if article.news_timestamp is not None and article.news_timestamp > article.published_to_channel_at + timedelta(seconds=5):
+            return False
         return bool(self.publisher.publishers) and all(
             self.publisher.idempotency.seen(f"{article.id}:{publisher.publisher.name}")
             for publisher in self.publisher.publishers
@@ -118,13 +123,14 @@ class ProcessingService:
 
     def _select_fair_batch(self, articles: tuple[Article, ...]) -> tuple[Article, ...]:
         buckets: dict[str, list[Article]] = defaultdict(list)
+
         def get_sort_key(item: Article) -> datetime:
-            ts = item.news_timestamp
-            if ts is None:
-                return datetime.fromtimestamp(0, tz=UTC)
-            return ts
+            timestamp = item.news_timestamp
+            return timestamp or datetime.fromtimestamp(0, tz=UTC)
+
         for article in sorted(articles, key=get_sort_key, reverse=True):
             buckets[article.source].append(article)
+
         selected: list[Article] = []
         while len(selected) < self.max_publications_per_hour and buckets:
             for source in tuple(buckets):
@@ -138,93 +144,86 @@ class ProcessingService:
         return tuple(selected)
 
     def process(self, items: Iterable[FeedItem]) -> ProcessingReport:
+        # Normalize/deduplicate first; do not spend AI resources until the
+        # normalized article has passed the mandatory freshness gate.
         result = self.pipeline.process(unique_items(items))
-        articles = tuple(self._enrich(article) for article in result.articles)
+        normalized_articles = result.articles
         now = datetime.now(UTC)
-        candidates = []
+        fresh_articles: list[Article] = []
         old_count = 0
-        from yasinpress.processing.breaking import detect_breaking
 
-        for article in articles:
-            detect_breaking(
-                article.title,
-                article.content,
-                published_at=article.published_at,
-            )
-            pub = article.news_timestamp
-            if pub is None or article.lifecycle_state == "timestamp_unknown":
-                old_count += 1
-                continue
-
-            cutoff = now - self.max_age
-            if pub.tzinfo is None:
-                pub = pub.replace(tzinfo=UTC)
+        for article in normalized_articles:
+            if self._fresh(article, now, self.max_age):
+                fresh_articles.append(article)
             else:
-                pub = pub.astimezone(UTC)
-
-            if pub < cutoff:
                 old_count += 1
-            else:
-                candidates.append(article)
 
-        candidates = tuple(candidates)
-        undelivered = tuple(article for article in candidates if not self._fully_delivered(article))
-        duplicate_count = len(candidates) - len(undelivered)
+        # AI is deliberately downstream of freshness filtering. This prevents
+        # stale or timestamp-unknown RSS entries from consuming AI/queue work.
+        enriched_fresh = tuple(self._enrich(article) for article in fresh_articles)
+        articles_by_id = {article.id: article for article in enriched_fresh}
+        all_articles = tuple(
+            articles_by_id.get(article.id, article) for article in normalized_articles
+        )
+
+        undelivered = tuple(article for article in enriched_fresh if not self._fully_delivered(article))
+        duplicate_count = len(enriched_fresh) - len(undelivered)
 
         if self.publication_queue is not None:
+            from yasinpress.processing.breaking import detect_breaking
             from yasinpress.processing.priority import calculate_priority
 
-            max_att = 3
+            max_attempts = 3
             if self.publisher.publishers:
                 policy = getattr(self.publisher.publishers[0], "policy", None)
-                max_att = getattr(policy, "max_attempts", 3) if policy else 3
+                max_attempts = getattr(policy, "max_attempts", 3) if policy else 3
 
             queued_jobs = 0
             for article in undelivered:
-                breaking_res = detect_breaking(
+                breaking_result = detect_breaking(
                     article.title,
                     article.content,
                     published_at=article.published_at,
                 )
-                priority_res = calculate_priority(article.title, article.content)
-                if breaking_res.is_breaking:
-                    level, score = "breaking", 40
-                elif priority_res.level == "high":
-                    level, score = "urgent", 30
-                elif priority_res.level == "medium":
-                    level, score = "important", 20
+                priority_result = calculate_priority(article.title, article.content)
+                if breaking_result.is_breaking:
+                    priority_level, priority = "breaking", 40
+                elif priority_result.level == "high":
+                    priority_level, priority = "urgent", 30
+                elif priority_result.level == "medium":
+                    priority_level, priority = "important", 20
                 else:
-                    level, score = "normal", 10
+                    priority_level, priority = "normal", 10
 
                 for publisher in self.publisher.publishers:
                     job_id = f"{article.id}:{publisher.publisher.name}"
-                    get_job_fn = getattr(self.publication_queue, "get_job", None)
-                    existing_job = get_job_fn(job_id) if get_job_fn is not None else None
-                    should_queue = False
-                    if existing_job is None or article.published_to_channel_at is None or (
-                        article.news_timestamp is not None
-                        and article.published_to_channel_at is not None
+                    get_job = getattr(self.publication_queue, "get_job", None)
+                    existing_job = get_job(job_id) if get_job is not None else None
+                    needs_queue = existing_job is None or article.published_to_channel_at is None
+                    if (
+                        not needs_queue
+                        and article.news_timestamp is not None
                         and article.news_timestamp > article.published_to_channel_at + timedelta(seconds=5)
                     ):
-                        should_queue = True
+                        needs_queue = True
 
-                    if should_queue:
+                    if needs_queue:
                         self.publication_queue.add_job(
                             PublicationJob(
                                 id=job_id,
                                 article_id=article.id,
                                 destination=publisher.publisher.name,
                                 status="pending",
-                                priority=score,
-                                priority_level=level,
+                                priority=priority,
+                                priority_level=priority_level,
                                 source=article.source,
-                                max_attempts=max_att,
+                                max_attempts=max_attempts,
                             )
                         )
                         queued_jobs += 1
 
             return ProcessingReport(
-                PipelineResult(len(articles), result.rejected, articles),
+                PipelineResult(len(all_articles), result.rejected, all_articles),
                 PublishReport(()),
                 old_count=old_count,
                 queued_count=queued_jobs,
@@ -236,21 +235,20 @@ class ProcessingService:
         selected = self._select_fair_batch(undelivered)[:available]
         queued_count = max(0, len(undelivered) - len(selected))
         results: list[PublishResult] = []
-        updated_articles_map = {}
+        updated_articles: dict[str, Article] = {}
+
         for article in selected:
             report = self.publisher.publish(article)
             results.extend(report.results)
-            if any(res.success for res in report.results):
-                from dataclasses import replace
-                article = replace(article, published_to_channel_at=datetime.now(UTC))
-                updated_articles_map[article.id] = article
+            if any(result.success for result in report.results):
+                published = replace(article, published_to_channel_at=datetime.now(UTC))
+                updated_articles[published.id] = published
                 if self.repository is not None:
-                    self.repository.save(article)
+                    self.repository.save(published)
 
-        final_articles = tuple(updated_articles_map.get(a.id, a) for a in articles)
-
+        final_articles = tuple(updated_articles.get(article.id, article) for article in all_articles)
         return ProcessingReport(
-            PipelineResult(len(articles), result.rejected, final_articles),
+            PipelineResult(len(final_articles), result.rejected, final_articles),
             PublishReport(tuple(results)),
             old_count=old_count,
             queued_count=queued_count,
