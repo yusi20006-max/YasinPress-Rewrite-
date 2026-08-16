@@ -67,9 +67,9 @@ def test_rss_without_timestamp():
 
 
 def test_atom_timestamp_parsing():
-    xml = """<feed xmlns="http://www.w3.org/2005/Atom"><entry>
+    xml = """<feed xmlns=\"http://www.w3.org/2005/Atom\"><entry>
         <title>Atom News</title>
-        <link href="https://example.com/atom1"/>
+        <link href=\"https://example.com/atom1\"/>
         <summary>Summary</summary>
         <published>2026-08-11T14:30:00+03:30</published>
         <updated>2026-08-11T15:45:00+03:30</updated>
@@ -137,7 +137,7 @@ def test_message_rendering_with_timestamps(monkeypatch):
         published_at=datetime(2026, 8, 11, 14, 30, tzinfo=UTC)
     )
     msg1 = pub.render(item1)
-    assert "🕐 زمان خبر: ۲۰ مرداد ۱۴۰۵، ۱۸:۰۰" in msg1
+    assert "زمان خبر: ۲۰ مرداد ۱۴۰۵، ۱۸:۰۰ 🕐" in msg1
 
     # 2. Updated timestamp present
     item2 = Article(
@@ -146,14 +146,14 @@ def test_message_rendering_with_timestamps(monkeypatch):
         updated_at=datetime(2026, 8, 11, 15, 45, tzinfo=UTC)
     )
     msg2 = pub.render(item2)
-    assert "🕐 آخرین به‌روزرسانی: ۲۰ مرداد ۱۴۰۵، ۱۹:۱۵" in msg2
+    assert "آخرین به‌روزرسانی: ۲۰ مرداد ۱۴۰۵، ۱۹:۱۵ 🕐" in msg2
 
     # 3. No valid timestamp
     item3 = Article(
         id="YP-123456", title="Title", url="https://example.com", content="Body", source="Source"
     )
     msg3 = pub.render(item3)
-    assert "🕐 زمان انتشار: نامشخص" in msg3
+    assert "زمان انتشار: نامشخص 🕐" in msg3
 
 
 def test_duplicate_and_update_behavior():
