@@ -3,6 +3,22 @@ from datetime import UTC, datetime
 from yasinpress.database.models import Article
 from yasinpress.publishing.eitaa import EitaaPublisher
 
+_BIDI = (
+    "\u202a",
+    "\u202b",
+    "\u202c",
+    "\u202d",
+    "\u202e",
+    "\u200e",
+    "\u200f",
+    "\u2066",
+    "\u2067",
+    "\u2068",
+    "\u2069",
+)
+_ESC_LT = chr(38) + "lt;"
+_ESC_GT = chr(38) + "gt;"
+
 
 def article(*, ai_modified: bool = False, title: str = "عنوان آزمایشی") -> Article:
     return Article(
@@ -37,7 +53,7 @@ def test_breaking_marker_is_emitted_for_fresh_severe_news():
     rendered = publisher().render(
         article(title="فوری: زلزله شدید در تهران")
     )
-    assert rendered.startswith("🚨 <b>خبر فوری</b>\n\n")
+    assert rendered.startswith("<b>خبر فوری</b> 🚨\n\n")
     assert "<b>فوری: زلزله شدید در تهران</b>" in rendered
 
 
@@ -65,4 +81,21 @@ def test_html_is_escaped():
     )
     rendered = publisher().render(item)
     assert "<script>" not in rendered
-    assert "&lt;script&gt;" in rendered
+    assert _ESC_LT + "script" + _ESC_GT in rendered
+
+
+def test_no_invisible_bidi_controls_in_serialized_html():
+    rendered = publisher().render(article(ai_modified=True, title="فوری: تست"))
+    for ch in _BIDI:
+        assert ch not in rendered
+
+
+def test_marker_blocks_are_not_emoji_led():
+    """#93: logical blocks must not start with neutral emoji."""
+    rendered = publisher().render(article(ai_modified=True, title="فوری: زلزله شدید"))
+    for line in rendered.splitlines():
+        stripped = line.lstrip()
+        if not stripped:
+            continue
+        if stripped[0] in "🚨🤖🕐":
+            raise AssertionError(f"emoji-led block: {stripped!r}")

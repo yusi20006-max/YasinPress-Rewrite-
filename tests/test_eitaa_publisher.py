@@ -3,6 +3,10 @@ from datetime import UTC, datetime, timedelta
 from yasinpress.database.models import Article
 from yasinpress.publishing.eitaa import EitaaPublisher
 
+_LT = chr(38) + "lt;"
+_GT = chr(38) + "gt;"
+_AMP = chr(38) + "amp;"
+
 
 def article(*, ai_modified: bool = False, title: str = "خبر آزمایشی", content: str = "متن خبر") -> Article:
     return Article(
@@ -43,7 +47,7 @@ def test_render_marks_only_ai_modified_articles():
 def test_render_uses_breaking_header_for_fresh_severe_news():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(title="فوری: زلزله شدید"))
-    assert rendered.startswith("🚨 <b>خبر فوری</b>\n\n")
+    assert rendered.startswith("<b>خبر فوری</b> 🚨\n\n")
     assert "<b>فوری: زلزله شدید</b>" in rendered
     assert "منبع: example.com" in rendered
     assert "https://" not in rendered
@@ -53,8 +57,8 @@ def test_render_uses_breaking_header_for_fresh_severe_news():
 def test_render_escapes_article_content():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(title="A < B", content="x > y & z"))
-    assert "A &lt; B" in rendered
-    assert "x &gt; y &amp; z" in rendered
+    assert "A " + _LT + " B" in rendered
+    assert "x " + _GT + " y " + _AMP + " z" in rendered
 
 
 def test_mixed_script_title_remains_plain_and_deterministic():
@@ -72,3 +76,14 @@ def test_render_removes_title_html_and_markdown_artifacts():
     assert "<b><b>" not in rendered
     assert "CODE" not in rendered
     assert "`" not in rendered
+
+
+def test_time_and_ai_blocks_are_persian_led():
+    publisher = EitaaPublisher(token="token", channel="channel")
+    rendered = publisher.render(article(ai_modified=True))
+    assert "زمان خبر:" in rendered
+    assert "🕐" in rendered
+    assert not any(
+        line.lstrip().startswith("🕐") for line in rendered.splitlines() if line.strip()
+    )
+    assert "<i>بازنویسی‌شده با هوش مصنوعی</i> 🤖" in rendered
