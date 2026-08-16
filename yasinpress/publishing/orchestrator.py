@@ -45,10 +45,10 @@ class PublishingOrchestrator:
 
     @staticmethod
     def _version_key(article: Article, destination: str) -> str | None:
-        """Return a versioned key only for articles carrying an explicit update timestamp."""
+        """Return a delivery version only for an explicit article update."""
         if article.updated_at is None:
             return None
-        return f"{article.id}:{destination}:updated:{article.updated_at.isoformat()}"
+        return f"{article.id}:{destination}:version:{article.updated_at.isoformat()}"
 
     def publish(self, article: Article) -> PublishReport:
         results: list[PublishResult] = []
@@ -58,8 +58,8 @@ class PublishingOrchestrator:
             legacy_key = f"{article.id}:{destination}"
 
             # Preserve legacy idempotency for unchanged articles. An explicit
-            # updated_at creates a new delivery version and therefore bypasses
-            # the legacy key while remaining idempotent for repeated retries.
+            # updated_at creates a new delivery version while repeated retries
+            # of that same version remain idempotent.
             already_published_version = key is not None and self.idempotency.seen(key)
             unchanged_legacy_delivery = key is None and self.idempotency.seen(legacy_key)
             if already_published_version or unchanged_legacy_delivery:
@@ -86,6 +86,7 @@ class PublishingOrchestrator:
                 )
             )
             if result.success:
-                self.idempotency.mark(key or legacy_key)
+                if key is not None:
+                    self.idempotency.mark(key)
                 self.idempotency.mark(legacy_key)
         return PublishReport(tuple(results))
