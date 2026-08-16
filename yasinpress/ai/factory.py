@@ -6,6 +6,7 @@ from yasinpress.ai.base import AIProvider, AIResult
 from yasinpress.ai.config import AIConfig
 from yasinpress.ai.openai_compatible import OpenAICompatibleProvider
 from yasinpress.ai.resilient import AIResiliencePolicy, ResilientAIProvider
+from yasinpress.ai.yasin_ai import YasinAIProvider
 from yasinpress.database.models import Article
 
 
@@ -21,10 +22,23 @@ class NoOpAIProvider(AIProvider):
 
 
 def create_ai_provider(config: AIConfig, *, client: Any | None = None) -> AIProvider:
-    """Build the configured provider and apply the configured resilience policy."""
-    if not config.usable() or client is None:
+    """Build the configured provider behind the YasinPress AI boundary."""
+    if not config.usable():
         return NoOpAIProvider()
-    provider = OpenAICompatibleProvider(client, model=config.model)
+
+    if config.provider == "yasin-ai":
+        try:
+            from yasinai.services.generation_service import GenerationService
+        except ImportError:
+            return NoOpAIProvider()
+        return ResilientAIProvider(
+            YasinAIProvider(GenerationService(), model=config.model),
+            AIResiliencePolicy(timeout_seconds=config.timeout_seconds, max_attempts=2),
+        )
+
+    if client is None:
+        return NoOpAIProvider()
+    provider = OpenAICompatibleProvider(client, model=config.model or "")
     return ResilientAIProvider(
         provider,
         AIResiliencePolicy(timeout_seconds=config.timeout_seconds, max_attempts=2),
