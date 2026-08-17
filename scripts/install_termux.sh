@@ -12,9 +12,12 @@ YASIN_AI_DIR="${HOME}/yasineco/Yasin-AI"
 
 pkg update -y
 pkg upgrade -y
-pkg install -y python git clang make pkg-config openssl openssl-tool libffi cmake patchelf
+# Use Termux-native Ruff. Installing ruff from PyPI on Android can trigger a
+# large Rust/maturin source build instead of using a compatible wheel.
+pkg install -y python git clang make pkg-config openssl openssl-tool libffi cmake patchelf ruff
 
 "${PYTHON_BIN}" --version
+ruff --version
 rm -rf .venv
 "${PYTHON_BIN}" -m venv .venv
 source .venv/bin/activate
@@ -27,7 +30,10 @@ if [[ ! -f "${YASIN_AI_DIR}/pyproject.toml" ]]; then
   git clone --depth 1 --branch main https://github.com/yusi20006-max/Yasin-AI.git "${YASIN_AI_DIR}"
 fi
 python -m pip install -e "${YASIN_AI_DIR}"
-python -m pip install -e ".[dev]"
+# Install only the test runner needed by the Termux validation. Do not install
+# the full [dev] extra because it pulls ruff from PyPI and attempts a native
+# Rust build on Android.
+python -m pip install "pytest>=8.2,<10"
 
 if [[ ! -f .env ]]; then
   cp .env.example .env
@@ -47,7 +53,7 @@ PY
 
 python -m compileall -q yasinpress tests
 python -m pytest -q
-python -m ruff check .
+ruff check .
 python -m yasinpress.cli.main --help
 
 echo "YasinPress Termux installation completed successfully."
