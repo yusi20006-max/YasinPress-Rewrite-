@@ -22,6 +22,10 @@ jobs:
           cache: pip
       - name: Verify runtime
         run: python -VV
+      - name: Install canonical Yasin-AI
+        run: |
+          git clone --depth 1 --branch main https://github.com/yusi20006-max/Yasin-AI.git ../Yasin-AI
+          python -m pip install -e ../Yasin-AI
       - name: Install project and development dependencies
         run: python -m pip install -e ".[dev]"
       - name: Compile source and tests
