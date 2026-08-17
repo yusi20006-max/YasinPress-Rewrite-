@@ -25,7 +25,7 @@ class YasinAIProvider(AIProvider):
         return "yasin-ai"
 
     def enrich(self, article: Article) -> AIResult:
-        from yasinai.contracts.generation import GenerationRequest
+        from yasinai.contracts import GenerationRequest
 
         prompt = (
             "Analyze this Persian news article and return ONLY a JSON object with "

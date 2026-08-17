@@ -28,7 +28,7 @@ def create_ai_provider(config: AIConfig, *, client: Any | None = None) -> AIProv
 
     if config.provider == "yasin-ai":
         try:
-            from yasinai.services.generation_service import GenerationService
+            from yasinai.services import GenerationService
         except ImportError:
             return NoOpAIProvider()
         return ResilientAIProvider(
