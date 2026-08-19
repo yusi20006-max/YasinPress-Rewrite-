@@ -2,7 +2,7 @@
 
 **Version:** 1.0.0
 
-**Decision:** READY
+**Decision:** READY — finalization in progress
 
 ## Completed
 
@@ -15,8 +15,23 @@
 - GitHub Actions CI passed on main commit a3c08d22cd (2026-08-13): YasinPress CI ✅, Python Compatibility ✅, Actions Probe ✅
 - 237 unit and integration tests passed on Python 3.13
 - Ruff checks passed with zero errors
+- Issue #121: Persian Eitaa title normalization and canonical message-format regression coverage merged in PR #123 (commit `2f2f2c9ec6282361ce43192d4af9fd46900f1f23`)
+
+## Current finalization gate
+
+### Completed
+
+- Persian title normalization at the Eitaa publishing boundary
+- Bidi-safe Persian-leading logical blocks
+- Removal of known title metadata decorations
+- Exact regression coverage for reported titles and normal/breaking output
+
+### Remaining
+
+- Termux bootstrap finalization (PR #120 / follow-up issue)
+- P2 repository secret scanning control (Issue #118)
+- Final end-to-end production smoke test and certification
 
 ## Release gate
 
-All gates confirmed. The release is marked **READY**.
-
+The application architecture and runtime gates remain **READY**. Final certification remains blocked only by the explicitly listed finalization tasks above.
