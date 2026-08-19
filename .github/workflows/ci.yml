@@ -33,4 +33,6 @@ jobs:
       - name: Run test suite
         run: python -m pytest -q
       - name: Run Ruff
-        run: python -m ruff check .
+        run: ruff check .
+      - name: Verify CLI startup contract
+        run: python -m yasinpress.cli.main --help
