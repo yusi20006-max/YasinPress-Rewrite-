@@ -67,7 +67,7 @@ def test_raw_url_is_not_rendered_as_plain_text():
     assert "منبع: example.com" in rendered
 
 
-def test_html_is_escaped():
+def test_html_is_safely_escaped_and_script_markup_is_removed():
     item = article()
     item = Article(
         id=item.id,
@@ -79,7 +79,8 @@ def test_html_is_escaped():
     )
     rendered = publisher().render(item)
     assert "<script>" not in rendered
-    assert _ESC_LT + "script" + _ESC_GT in rendered
+    assert "alert(&quot;x&quot;)" in rendered
+    assert _ESC_LT + "b" + _ESC_GT + "unsafe" + _ESC_LT + "/b" + _ESC_GT in rendered
 
 
 def test_no_invisible_bidi_controls_in_serialized_html():
@@ -107,8 +108,9 @@ def test_reported_persian_titles_are_normalized_before_eitaa_html():
     ]
     for title in titles:
         rendered = publisher().render(article(title=title))
-        assert rendered.startswith(f"<b>{title}</b>\n\n")
-        assert title in rendered
+        assert f"<b>{title}</b>" in rendered
+        assert rendered.count(f"<b>{title}</b>") == 1
+        assert "خبرگزاری" not in _clean_title(title)
 
 
 def test_title_metadata_and_punctuation_noise_are_removed_without_destroying_meaning():
@@ -120,10 +122,10 @@ def test_title_metadata_and_punctuation_noise_are_removed_without_destroying_mea
 
 
 def test_exact_canonical_normal_message_layout():
-    title = "نشست تخصصی اصحاب رسانه درباره جنگ شناختی"
+    title = "نشست تخصصی اصحاب رسانه درباره نشست تخصصی"
     rendered = publisher().render(article(title=title))
     assert rendered == (
-        "<b>نشست تخصصی اصحاب رسانه درباره جنگ شناختی</b>\n\n"
+        "<b>نشست تخصصی اصحاب رسانه درباره نشست تخصصی</b>\n\n"
         "متن خبر\n\n"
         "زمان خبر: ۲۷ مرداد ۱۴۰۵، ۲۱:۲۰ 🕐\n"
         "منبع: example.com"

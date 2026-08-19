@@ -1,3 +1,5 @@
+import sys
+import types
 from datetime import UTC, datetime
 
 from yasinpress.ai.base import AIResult
@@ -35,7 +37,22 @@ def article() -> Article:
     )
 
 
-def test_yasin_ai_adapter_uses_public_generation_contract():
+def install_fake_public_contract(monkeypatch):
+    package = types.ModuleType("yasinai")
+    contracts = types.ModuleType("yasinai.contracts")
+
+    class GenerationRequest:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    contracts.GenerationRequest = GenerationRequest
+    package.contracts = contracts
+    monkeypatch.setitem(sys.modules, "yasinai", package)
+    monkeypatch.setitem(sys.modules, "yasinai.contracts", contracts)
+
+
+def test_yasin_ai_adapter_uses_public_generation_contract(monkeypatch):
+    install_fake_public_contract(monkeypatch)
     service = FakeGenerationService(
         FakeGenerationResult(
             '{"title":"عنوان بازنویسی","content":"متن بازنویسی",'
@@ -56,7 +73,8 @@ def test_yasin_ai_adapter_uses_public_generation_contract():
     assert service.requests[0].model == "test-model"
 
 
-def test_yasin_ai_adapter_rejects_invalid_structured_response():
+def test_yasin_ai_adapter_rejects_invalid_structured_response(monkeypatch):
+    install_fake_public_contract(monkeypatch)
     service = FakeGenerationService(FakeGenerationResult("not-json"))
     result = YasinAIProvider(service).enrich(article())
 
@@ -66,7 +84,8 @@ def test_yasin_ai_adapter_rejects_invalid_structured_response():
     assert result.error == "Invalid Yasin-AI structured response"
 
 
-def test_yasin_ai_adapter_contains_generation_failure():
+def test_yasin_ai_adapter_contains_generation_failure(monkeypatch):
+    install_fake_public_contract(monkeypatch)
     service = FakeGenerationService(
         FakeGenerationResult("", success=False, error="provider timeout")
     )
