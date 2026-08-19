@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from yasinpress.database.models import Article
-from yasinpress.publishing.eitaa import EitaaPublisher
+from yasinpress.publishing.eitaa import EitaaPublisher, _clean_title
 
 _BIDI = (
     "\u202a",
@@ -27,7 +27,7 @@ def article(*, ai_modified: bool = False, title: str = "عنوان آزمایش�
         url="https://example.com/news/1",
         content="متن خبر",
         source="Example",
-        published_at=datetime.now(UTC),
+        published_at=datetime(2026, 8, 18, 17, 50, tzinfo=UTC),
         ai_modified=ai_modified,
     )
 
@@ -50,9 +50,7 @@ def test_ai_marker_only_when_article_was_modified():
 
 
 def test_breaking_marker_is_emitted_for_fresh_severe_news():
-    rendered = publisher().render(
-        article(title="فوری: زلزله شدید در تهران")
-    )
+    rendered = publisher().render(article(title="فوری: زلزله شدید در تهران"))
     assert rendered.startswith("<b>خبر فوری</b> 🚨\n\n")
     assert "<b>فوری: زلزله شدید در تهران</b>" in rendered
 
@@ -91,7 +89,7 @@ def test_no_invisible_bidi_controls_in_serialized_html():
 
 
 def test_marker_blocks_are_not_emoji_led():
-    """#93: logical blocks must not start with neutral emoji."""
+    """Logical blocks must not start with neutral emoji."""
     rendered = publisher().render(article(ai_modified=True, title="فوری: زلزله شدید"))
     for line in rendered.splitlines():
         stripped = line.lstrip()
@@ -99,3 +97,45 @@ def test_marker_blocks_are_not_emoji_led():
             continue
         if stripped[0] in "🚨🤖🕐":
             raise AssertionError(f"emoji-led block: {stripped!r}")
+
+
+def test_reported_persian_titles_are_normalized_before_eitaa_html():
+    titles = [
+        "نشست تخصصی اصحاب رسانه درباره جنگ شناختی",
+        "رژیم صهیونیستی مدعی حمله به جلسه رهبران مقاومت در غزه",
+        "حمله توپخانه ای رژیم صهیونیستی به جنوب سوریه",
+    ]
+    for title in titles:
+        rendered = publisher().render(article(title=title))
+        assert rendered.startswith(f"<b>{title}</b>\n\n")
+        assert title in rendered
+
+
+def test_title_metadata_and_punctuation_noise_are_removed_without_destroying_meaning():
+    title = "حمله توپخانه ای رژیم صهیونیستی به جنوب سوریه - خبرگزاری ایرنا"
+    assert _clean_title(title) == "حمله توپخانه ای رژیم صهیونیستی به جنوب سوریه"
+
+    quoted = "پایان رزمایش؛ «گزارش نهایی» - خبرگزاری مهر"
+    assert _clean_title(quoted) == "پایان رزمایش؛ «گزارش نهایی»"
+
+
+def test_exact_canonical_normal_message_layout():
+    title = "نشست تخصصی اصحاب رسانه درباره جنگ شناختی"
+    rendered = publisher().render(article(title=title))
+    assert rendered == (
+        "<b>نشست تخصصی اصحاب رسانه درباره جنگ شناختی</b>\n\n"
+        "متن خبر\n\n"
+        "زمان خبر: ۲۷ مرداد ۱۴۰۵، ۲۱:۲۰ 🕐\n"
+        "منبع: example.com"
+    )
+
+
+def test_exact_canonical_breaking_message_layout():
+    rendered = publisher().render(article(title="فوری: زلزله شدید در تهران"))
+    assert rendered == (
+        "<b>خبر فوری</b> 🚨\n\n"
+        "<b>فوری: زلزله شدید در تهران</b>\n\n"
+        "متن خبر\n\n"
+        "زمان خبر: ۲۷ مرداد ۱۴۰۵، ۲۱:۲۰ 🕐\n"
+        "منبع: example.com"
+    )
