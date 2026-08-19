@@ -1,14 +1,25 @@
 # YasinPress Release Gate
 
+## Canonical repository certification commands
+
+The repository gate and CI must execute this exact command set:
+
+```text
+python -m compileall -q yasinpress tests
+python -m pytest -q
+ruff check .
+python -m yasinpress.cli.main --help
+```
+
 ## Automated repository gate
 
 - [ ] Python 3.11 CI passes where compatibility workflow applies
 - [ ] Python 3.12 CI passes where compatibility workflow applies
 - [ ] Python 3.13 CI passes
-- [ ] `compileall` passes
-- [ ] Full pytest suite passes
-- [ ] Ruff passes
-- [ ] CLI help/startup contract passes
+- [ ] `python -m compileall -q yasinpress tests` passes
+- [ ] `python -m pytest -q` passes
+- [ ] `ruff check .` passes
+- [ ] `python -m yasinpress.cli.main --help` passes
 - [ ] Runtime Worker and persistent publication queue remain distinct
 - [ ] No repository test requires production credentials or live external publishing
 
