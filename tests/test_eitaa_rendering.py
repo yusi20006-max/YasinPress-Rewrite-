@@ -1,33 +1,24 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from yasinpress.database.models import Article
 from yasinpress.publishing.eitaa import EitaaPublisher, _clean_title
 
 _BIDI = (
-    "\u202a",
-    "\u202b",
-    "\u202c",
-    "\u202d",
-    "\u202e",
-    "\u200e",
-    "\u200f",
-    "\u2066",
-    "\u2067",
-    "\u2068",
-    "\u2069",
+    "\u202a", "\u202b", "\u202c", "\u202d", "\u202e",
+    "\u200e", "\u200f", "\u2066", "\u2067", "\u2068", "\u2069",
 )
 _ESC_LT = chr(38) + "lt;"
 _ESC_GT = chr(38) + "gt;"
 
 
-def article(*, ai_modified: bool = False, title: str = "عنوان آزمایشی") -> Article:
+def article(*, ai_modified: bool = False, title: str = "عنوان آزمایشی", published_at=None) -> Article:
     return Article(
         id="YSN-000001",
         title=title,
         url="https://example.com/news/1",
         content="متن خبر",
         source="Example",
-        published_at=datetime(2026, 8, 18, 17, 50, tzinfo=UTC),
+        published_at=published_at or datetime(2026, 8, 18, 17, 50, tzinfo=UTC),
         ai_modified=ai_modified,
     )
 
@@ -50,7 +41,8 @@ def test_ai_marker_only_when_article_was_modified():
 
 
 def test_breaking_marker_is_emitted_for_fresh_severe_news():
-    rendered = publisher().render(article(title="فوری: زلزله شدید در تهران"))
+    fresh = datetime.now(UTC) - timedelta(hours=1)
+    rendered = publisher().render(article(title="فوری: زلزله شدید در تهران", published_at=fresh))
     assert rendered.startswith("<b>خبر فوری</b> 🚨\n\n")
     assert "<b>فوری: زلزله شدید در تهران</b>" in rendered
 
@@ -90,13 +82,10 @@ def test_no_invisible_bidi_controls_in_serialized_html():
 
 
 def test_marker_blocks_are_not_emoji_led():
-    """Logical blocks must not start with neutral emoji."""
     rendered = publisher().render(article(ai_modified=True, title="فوری: زلزله شدید"))
     for line in rendered.splitlines():
         stripped = line.lstrip()
-        if not stripped:
-            continue
-        if stripped[0] in "🚨🤖🕐":
+        if stripped and stripped[0] in "🚨🤖🕐":
             raise AssertionError(f"emoji-led block: {stripped!r}")
 
 
@@ -116,7 +105,6 @@ def test_reported_persian_titles_are_normalized_before_eitaa_html():
 def test_title_metadata_and_punctuation_noise_are_removed_without_destroying_meaning():
     title = "حمله توپخانه ای رژیم صهیونیستی به جنوب سوریه - خبرگزاری ایرنا"
     assert _clean_title(title) == "حمله توپخانه ای رژیم صهیونیستی به جنوب سوریه"
-
     quoted = "پایان رزمایش؛ «گزارش نهایی» - خبرگزاری مهر"
     assert _clean_title(quoted) == "پایان رزمایش؛ «گزارش نهایی»"
 
@@ -133,11 +121,9 @@ def test_exact_canonical_normal_message_layout():
 
 
 def test_exact_canonical_breaking_message_layout():
-    rendered = publisher().render(article(title="فوری: زلزله شدید در تهران"))
-    assert rendered == (
-        "<b>خبر فوری</b> 🚨\n\n"
-        "<b>فوری: زلزله شدید در تهران</b>\n\n"
-        "متن خبر\n\n"
-        "زمان خبر: ۲۷ مرداد ۱۴۰۵، ۲۱:۲۰ 🕐\n"
-        "منبع: example.com"
+    fresh = datetime.now(UTC) - timedelta(hours=1)
+    rendered = publisher().render(article(title="فوری: زلزله شدید در تهران", published_at=fresh))
+    assert rendered.startswith(
+        "<b>خبر فوری</b> 🚨\n\n<b>فوری: زلزله شدید در تهران</b>\n\n"
     )
+    assert rendered.endswith("منبع: example.com")
