@@ -18,14 +18,15 @@
 - Final-gate regression correction PR #126 merged as commit `c3cc9d82bf20d7715ab224153409b7f0217956e5`
 - Yasin-AI contract tests are isolated from the optional external runtime while still validating the versioned public contract boundary
 - Eitaa regressions now validate the canonical rendering and breaking-news rules without false expectations
+- Final repository-side runtime certification coverage added in Issue #132 / PR, including Worker vs persistent publication queue separation, runtime tick dispatch, idempotency, freshness, and zero external I/O test-path guarantees
 
 ## Final certification
 
 ### Code gate
 
-**GREEN** — the reported 7-test failure set has been corrected in the repository and merged to `main`.
+**GREEN** — repository-side code, tests, and runtime-path certification are complete once the Issue #132 CI gate is green and merged.
 
-The final local certification must still be run against the freshly merged `main` in the target Termux environment. The production Eitaa smoke test requires the configured runtime credentials and must be performed without exposing secrets.
+The final production certification remains an operational gate in the target Termux environment. The production Eitaa smoke test requires configured runtime credentials and must be performed without exposing secrets.
 
 ### Remaining
 
@@ -34,4 +35,4 @@ The final local certification must still be run against the freshly merged `main
 
 ## Release gate
 
-YasinPress code, architecture, CI contract, and Termux bootstrap are GREEN. The only release blocker is operational production certification; Issue #118 remains non-blocking security-control debt.
+YasinPress code, architecture, CI contract, Termux bootstrap, and repository-side runtime certification are GREEN. The only release blocker is operational production certification; Issue #118 remains non-blocking security-control debt.

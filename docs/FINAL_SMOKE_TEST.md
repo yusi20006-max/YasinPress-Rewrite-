@@ -1,6 +1,17 @@
 # YasinPress Final Production Smoke Test
 
-This checklist is the final operational certification gate after the Termux bootstrap and Eitaa formatting fixes.
+This checklist is the final operational certification gate after repository-side runtime certification, the Termux bootstrap, and Eitaa formatting fixes.
+
+## Repository-side gate
+
+Before using Termux, CI must certify:
+
+- Runtime Worker and persistent publication queue remain separate.
+- `RuntimeFactory.tick()` runs scheduler work, Worker execution, and persistent publication dispatch in the intended order.
+- Persistent publication is idempotent and drains through the configured test publisher without external network I/O.
+- The 12-hour freshness boundary is enforced before durable publication enqueue.
+- Global and per-source publication limits remain covered by the existing queue regression suite.
+- Repository-side tests pass without production credentials.
 
 ## Environment
 
@@ -20,8 +31,9 @@ This checklist is the final operational certification gate after the Termux boot
 - [ ] Source is rendered as a plain domain.
 - [ ] Article URL is not emitted as a clickable/plain URL in the message body.
 - [ ] Queue/retry/idempotency behavior remains unchanged.
+- [ ] A real Eitaa publication succeeds with the configured production credentials.
 
-## Automated gate
+## Automated repository gate
 
 - [ ] `python -m compileall -q yasinpress tests`
 - [ ] `python -m pytest -q`
