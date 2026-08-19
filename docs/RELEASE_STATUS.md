@@ -28,9 +28,8 @@
 
 ### Remaining
 
-- Termux bootstrap finalization (PR #120 / follow-up issue)
+- Finalization Phase 2 — Termux bootstrap, production smoke test, and final certification (Issue #124; PR #120 is the existing implementation candidate)
 - P2 repository secret scanning control (Issue #118)
-- Final end-to-end production smoke test and certification
 
 ## Release gate
 
