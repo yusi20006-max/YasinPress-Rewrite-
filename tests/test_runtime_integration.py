@@ -47,3 +47,33 @@ def test_runtime_factory_exposes_persistent_queue_processor(tmp_path):
         assert bundle.config.max_publications_per_hour == 10
     finally:
         bundle.close()
+
+
+def test_runtime_worker_consumes_job_submitted_through_pipeline_factory(tmp_path):
+    cfg = RuntimeConfig(
+        database_path=str(tmp_path / "press.db"),
+        worker_interval_seconds=0.01,
+        scheduler_interval_seconds=10.0,
+        feed_urls=(),
+    )
+    bundle = build_runtime(config=cfg)
+    try:
+        calls = []
+
+        def fake_process_items(items):
+            calls.append(tuple(items))
+            return "processed"
+
+        bundle.application.process_items = fake_process_items
+        job = bundle.jobs.submit(("test-item",))
+
+        assert bundle.worker.pending() == 1
+        result = bundle.worker.run_once()
+
+        assert result is job
+        assert result.status.value == "succeeded"
+        assert result.attempts == 1
+        assert calls == [("test-item",)]
+        assert bundle.worker.pending() == 0
+    finally:
+        bundle.close()
