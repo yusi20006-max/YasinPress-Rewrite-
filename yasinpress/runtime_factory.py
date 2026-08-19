@@ -117,6 +117,7 @@ def build_runtime(
         repositories=database,
         publishers=configured,
         max_global_per_hour=cfg.max_publications_per_hour,
+        max_source_per_hour=cfg.max_source_publications_per_hour,
     )
 
     def on_feed_received(source: str, count: int) -> None:
