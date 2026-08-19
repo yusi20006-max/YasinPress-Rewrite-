@@ -1,5 +1,5 @@
-from pathlib import Path
 import re
+from pathlib import Path
 
 
 def test_release_documentation_is_complete():
@@ -32,7 +32,10 @@ def test_release_docs_distinguish_repository_and_operational_certification():
 
 def test_release_docs_and_test_fixtures_do_not_contain_embedded_live_token_literals():
     candidates = list(Path("docs").rglob("*.md")) + list(Path("tests").rglob("*.py"))
-    token_pattern = re.compile(r"(?:eitaa_token|eitaa[_-]?api[_-]?token)\s*=\s*['\"][A-Za-z0-9_-]{20,}['\"]", re.IGNORECASE)
+    token_pattern = re.compile(
+        r"(?:eitaa_token|eitaa[_-]?api[_-]?token)\s*=\s*['\"][A-Za-z0-9_-]{20,}['\"]",
+        re.IGNORECASE,
+    )
     offenders = []
     for path in candidates:
         text = path.read_text(encoding="utf-8")
