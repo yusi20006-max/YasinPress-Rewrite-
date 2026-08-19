@@ -12,9 +12,9 @@
 - CLI and package regression gates
 - CI contract and release documentation gates
 - Static security and placeholder scans
-- GitHub Actions CI passed on the Termux bootstrap change: YasinPress CI, Python Compatibility, Phase 6 Python Compatibility Matrix, and Actions Probe all succeeded on commit `602ff83f45619f81e0be7eae6ea075a28d2b4682`
+- Termux bootstrap PR #120 merged successfully as commit `fffa57f3be7ae820f652c6be02b5891cdf0f91df`
 - Issue #121: Persian Eitaa title normalization and canonical message-format regression coverage merged in PR #123 / commit `2f2f2c9ec6282361ce43192d4af9fd46900f1f23`
-- Issue #124 Phase 2 Termux bootstrap: PR #120 merged in commit `fffa57f3be7ae820f652c6be02b5891cdf0f91df`
+- Termux bootstrap CI on PR #120: YasinPress CI, Python Compatibility, Phase 6 Python Compatibility Matrix, and Actions Probe all succeeded
 
 ## Current finalization gate
 
