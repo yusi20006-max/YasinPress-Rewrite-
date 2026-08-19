@@ -10,7 +10,6 @@ import httpx
 
 from yasinpress.database.models import Article
 from yasinpress.processing.breaking import detect_breaking
-from yasinpress.processing.headline import normalize_headline
 from yasinpress.publishing import Publisher, PublishResult
 
 _FORMATTING_TAG_RE = re.compile(r"<\s*/?\s*(?:b|strong|i|em|u|mark)\b[^>]*>", re.IGNORECASE)
@@ -31,11 +30,10 @@ _BIDI_CONTROLS = (
 
 
 def _clean_title(title: str) -> str:
-    """Normalize a title before HTML escaping and Eitaa rendering."""
+    """Remove title formatting artifacts while preserving unsafe text for escaping."""
     title = unescape(title)
     title = _FORMATTING_TAG_RE.sub(" ", title)
     title = _MARKDOWN_CODE_SPAN_RE.sub("", title)
-    title = normalize_headline(title)
     return re.sub(r"\s+", " ", title).strip()
 
 
@@ -71,12 +69,12 @@ class EitaaPublisher(Publisher):
         return hostname.removeprefix("www.") if hostname else "منبع"
 
     def render(self, article: Article) -> str:
-        """Render the canonical Yasin publishing message deterministically.
+        """Render the canonical Eitaa HTML message deterministically.
 
-        Eitaa's bidirectional renderer is kept stable by making each logical
-        block begin with visible strong Persian text. Decorative emoji are
-        deliberately placed after their Persian label; invisible bidi controls
-        are never injected into stored or rendered content.
+        Directionality must remain stable for the Eitaa client without injecting
+        invisible Unicode bidi controls (those corrupt entities and break
+        consumers). Each logical block therefore *leads* with visible strong
+        Persian text; decorative emoji follow the label.
         """
         from yasinpress.core.helpers import format_persian_datetime
 
@@ -90,6 +88,7 @@ class EitaaPublisher(Publisher):
 
         lines: list[str] = []
         if breaking:
+            # Persian label first (strong RTL), emoji after — not "🚨 <b>…"
             lines.extend(["<b>خبر فوری</b> 🚨", ""])
 
         lines.extend([
@@ -99,6 +98,7 @@ class EitaaPublisher(Publisher):
         ])
 
         if article.ai_modified:
+            # Persian phrase first so the block is not emoji-led
             lines.extend(["", "<i>بازنویسی‌شده با هوش مصنوعی</i> 🤖"])
 
         timezone_str = os.getenv("YASINPRESS_TIMEZONE", "Asia/Tehran")
