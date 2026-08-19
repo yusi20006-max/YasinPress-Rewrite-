@@ -2,7 +2,7 @@
 
 ## Release state
 
-YasinPress `1.0.0` is finalized and **READY**.
+YasinPress `1.0.0` has a **GREEN repository code gate**. Final production certification remains an explicit operational gate.
 
 ### Completed
 
@@ -14,21 +14,18 @@ YasinPress `1.0.0` is finalized and **READY**.
 - Release documentation and regression gates
 - Static security/placeholder audit
 - Python 3.13 authoritative CI configuration
-- GitHub Actions CI confirmed on main (a3c08d22cd, 2026-08-13)
-  - YasinPress CI: success
-  - Python Compatibility: success
-  - Actions Probe: success
-  - 237 tests passed, Ruff clean
+- Runtime Worker and persistent publication queue certification
+- Repository-side runtime, freshness, idempotency, and no-external-I/O integration coverage
 
-### Live verification pending (operational, not code)
+### Operational certification pending
 
-These items require local Termux credentials and are not code blockers:
+These items require the target operational environment and must not be represented as repository-only completion:
 
 - `yasinpress run` end-to-end with a live Eitaa token
 - Production AI provider execution
 - PWA/RSS public hosting deployment
+- Final production smoke test and certification record
 
 ## Operational rule
 
-No additional feature work should be added to YasinPress. The codebase is release-ready. Only failures observed in an actual production run should trigger further code changes.
-
+No additional feature work should be added to YasinPress unless an actual repository regression or production certification failure identifies a concrete defect. The repository-side gate is GREEN; the remaining release blocker is operational verification.
