@@ -7,6 +7,7 @@
 - Preserved bidi-safe Persian-leading message blocks and kept invisible bidi controls out of serialized Eitaa HTML.
 - Added exact regression coverage for the three reported Persian titles, normal/breaking layouts, HTML escaping, metadata noise, and AI marker behavior.
 - Merged as PR #123 / commit `2f2f2c9ec6282361ce43192d4af9fd46900f1f23`, closing Issue #121.
+- Finalized the Termux bootstrap so Ruff is installed from the native Termux package instead of triggering a PyPI Rust/maturin build; merged as PR #120 / commit `fffa57f3be7ae820f652c6be02b5891cdf0f91df`.
 
 ## 1.0.0 - 2026-07-15
 
