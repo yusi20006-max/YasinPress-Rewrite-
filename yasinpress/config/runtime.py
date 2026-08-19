@@ -28,6 +28,7 @@ class RuntimeConfig:
     max_feed_items: int = 100
     max_article_age_hours: float = 12.0
     max_publications_per_hour: int = 10
+    max_source_publications_per_hour: int = 5
 
     @classmethod
     def from_env(cls) -> RuntimeConfig:
@@ -57,6 +58,12 @@ class RuntimeConfig:
             max_feed_items=int(os.getenv("YASINPRESS_MAX_FEED_ITEMS", default_instance.max_feed_items)),
             max_article_age_hours=float(os.getenv("YASINPRESS_MAX_ARTICLE_AGE_HOURS", default_instance.max_article_age_hours)),
             max_publications_per_hour=int(os.getenv("YASINPRESS_MAX_PUBLICATIONS_PER_HOUR", default_instance.max_publications_per_hour)),
+            max_source_publications_per_hour=int(
+                os.getenv(
+                    "YASINPRESS_MAX_SOURCE_PUBLICATIONS_PER_HOUR",
+                    default_instance.max_source_publications_per_hour,
+                )
+            ),
         )
 
     def validate(self) -> None:
@@ -72,6 +79,8 @@ class RuntimeConfig:
             raise ValueError("max_article_age_hours must be positive")
         if self.max_publications_per_hour < 1:
             raise ValueError("max_publications_per_hour must be >= 1")
+        if self.max_source_publications_per_hour < 1:
+            raise ValueError("max_source_publications_per_hour must be >= 1")
         if self.max_feed_items < 1:
             raise ValueError("max_feed_items must be >= 1")
         if not self.feed_source:
