@@ -1,21 +1,16 @@
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import jdatetime
+import hashlib
+import json
 
 TEHRAN_TZ = "Asia/Tehran"
 
 # Deterministic fallback: Tehran is UTC+3:30 year‑round in fallback mode.
-# This is ONLY used when zoneinfo database is missing.
 FALLBACK_TEHRAN = timezone(timedelta(hours=3, minutes=30))
 
 
 def _get_timezone(tz_str: str):
-    """
-    Resolve timezone safely.
-    - Prefer ZoneInfo when available.
-    - If ZoneInfoNotFoundError occurs, use deterministic fallback.
-    - Caller-provided timezones still raise if missing (tests expect this).
-    """
     try:
         return ZoneInfo(tz_str)
     except ZoneInfoNotFoundError:
@@ -25,19 +20,9 @@ def _get_timezone(tz_str: str):
 
 
 def format_persian_datetime(dt: datetime, timezone_str: str = TEHRAN_TZ) -> str:
-    """
-    Convert datetime to Persian Jalali formatted string.
-    Preserves existing behavior, including:
-    - timezone-aware conversion
-    - deterministic fallback when zoneinfo is missing
-    - caller-provided timezone support
-    """
     tz = _get_timezone(timezone_str)
-
-    # Convert to target timezone
     localized = dt.astimezone(tz)
 
-    # Convert to Jalali
     jdt = jdatetime.datetime.fromgregorian(
         year=localized.year,
         month=localized.month,
@@ -48,5 +33,21 @@ def format_persian_datetime(dt: datetime, timezone_str: str = TEHRAN_TZ) -> str:
         tzinfo=tz,
     )
 
-    # Preserve existing formatting style
     return jdt.strftime("%Y/%m/%d - %H:%M")
+
+
+# -------------------------
+# 🔥 stable_hash (required by pipeline)
+# -------------------------
+
+def stable_hash(value) -> str:
+    """
+    Stable hashing used across pipeline, dedup, normalization, scheduler, runtime.
+    Must remain deterministic across Python versions and environments.
+    """
+    try:
+        normalized = json.dumps(value, sort_keys=True, ensure_ascii=False)
+    except TypeError:
+        normalized = str(value)
+
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
