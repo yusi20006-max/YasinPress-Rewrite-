@@ -78,7 +78,7 @@ class EitaaPublisher(Publisher):
         deliberately placed after their Persian label; invisible bidi controls
         are never injected into stored or rendered content.
         """
-        from yasinpress.core.helpers import format_persian_datetime
+        from yasinpress.core.helpers import format_persian_pretty
 
         source = escape(self._source_label(article))
         title = escape(_clean_title(article.title))
@@ -106,11 +106,11 @@ class EitaaPublisher(Publisher):
         if article.updated_at is not None and article.updated_at != epoch:
             time_str = (
                 "آخرین به‌روزرسانی: "
-                f"{format_persian_datetime(article.updated_at, timezone_str)} 🕐"
+                f"{format_persian_pretty(article.updated_at, timezone_str)} 🕐"
             )
         elif article.published_at is not None and article.published_at != epoch:
             time_str = (
-                f"زمان خبر: {format_persian_datetime(article.published_at, timezone_str)} 🕐"
+                f"زمان خبر: {format_persian_pretty(article.published_at, timezone_str)} 🕐"
             )
         else:
             time_str = "زمان انتشار: نامشخص 🕐"
