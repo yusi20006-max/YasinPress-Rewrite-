@@ -1,12 +1,14 @@
-from datetime import datetime, timezone, timedelta
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-import jdatetime
 import hashlib
 import json
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+import jdatetime
 
 TEHRAN_TZ = "Asia/Tehran"
 
 FALLBACK_TEHRAN = timezone(timedelta(hours=3, minutes=30))
+
 
 def _get_timezone(tz_str: str):
     try:
@@ -18,6 +20,7 @@ def _get_timezone(tz_str: str):
         if tz_str == TEHRAN_TZ:
             return FALLBACK_TEHRAN
         raise
+
 
 def format_persian_datetime(dt: datetime, timezone_str: str = TEHRAN_TZ) -> str:
     tz = _get_timezone(timezone_str)
@@ -35,6 +38,7 @@ def format_persian_datetime(dt: datetime, timezone_str: str = TEHRAN_TZ) -> str:
 
     return jdt.strftime("%Y/%m/%d - %H:%M")
 
+
 def stable_hash(value) -> str:
     try:
         normalized = json.dumps(value, sort_keys=True, ensure_ascii=False)
@@ -42,10 +46,22 @@ def stable_hash(value) -> str:
         normalized = str(value)
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
+
 PERSIAN_MONTHS = [
-    "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
-    "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
+    "فروردین",
+    "اردیبهشت",
+    "خرداد",
+    "تیر",
+    "مرداد",
+    "شهریور",
+    "مهر",
+    "آبان",
+    "آذر",
+    "دی",
+    "بهمن",
+    "اسفند",
 ]
+
 
 # تبدیل اعداد انگلیسی به فارسی
 def to_persian_digits(s: str) -> str:
@@ -53,6 +69,7 @@ def to_persian_digits(s: str) -> str:
     persian = "۰۱۲۳۴۵۶۷۸۹"
     table = str.maketrans(english, persian)
     return s.translate(table)
+
 
 def format_persian_pretty(dt: datetime, timezone_str: str = TEHRAN_TZ) -> str:
     tz = _get_timezone(timezone_str)

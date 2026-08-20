@@ -118,8 +118,6 @@ def test_persian_timestamp_present_in_render(monkeypatch):
 
 def test_realistic_eitaa_payload_structure():
     """Verify the exact fields sent over HTTP to Eitaa."""
-    captured: dict = {}
-
     response = Mock()
     response.raise_for_status.return_value = None
     response.json.return_value = {"ok": True, "result": {"message_id": 77}}

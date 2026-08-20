@@ -4,6 +4,8 @@ from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
+from yasinpress.ai.config import AIConfig
+from yasinpress.ai.factory import create_ai_provider
 from yasinpress.config.runtime import RuntimeConfig
 from yasinpress.database.sqlite import SQLiteRepositories
 from yasinpress.fetch.feed import FeedFetcher
@@ -101,9 +103,10 @@ def build_runtime(
 
     recover_jobs(database.jobs, database.jobs.all())
     configured = tuple(publishers) if publishers is not None else _configured_publishers(cfg)
+    configured_ai = ai if ai is not None else create_ai_provider(AIConfig.from_env())
     application = YasinPressApplication(
         source=cfg.feed_source,
-        ai=ai,
+        ai=configured_ai,
         publishers=configured,
         repositories=database,
         retry_policy=RetryPolicy(max_attempts=cfg.max_job_attempts),

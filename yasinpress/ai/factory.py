@@ -4,7 +4,7 @@ from typing import Any
 
 from yasinpress.ai.base import AIProvider, AIResult
 from yasinpress.ai.config import AIConfig
-from yasinpress.ai.openai_compatible import OpenAICompatibleProvider
+from yasinpress.ai.openai_compatible import HTTPXOpenAICompatibleClient, OpenAICompatibleProvider
 from yasinpress.ai.resilient import AIResiliencePolicy, ResilientAIProvider
 from yasinpress.ai.yasin_ai import YasinAIProvider
 from yasinpress.database.models import Article
@@ -37,7 +37,11 @@ def create_ai_provider(config: AIConfig, *, client: Any | None = None) -> AIProv
         )
 
     if client is None:
-        return NoOpAIProvider()
+        client = HTTPXOpenAICompatibleClient(
+            base_url=config.base_url,
+            api_key=config.api_key or "",
+            timeout_seconds=config.timeout_seconds,
+        )
     provider = OpenAICompatibleProvider(client, model=config.model or "")
     return ResilientAIProvider(
         provider,
