@@ -23,6 +23,18 @@ python -m yasinpress.cli.main --help
 - [ ] Runtime Worker and persistent publication queue remain distinct
 - [ ] No repository test requires production credentials or live external publishing
 
+## CI automation boundary
+
+All workflows under `.github/workflows/` are repository verification only:
+
+- Workflows declare explicit read-only `contents` permissions.
+- Workflows must not reference repository secrets or production tokens.
+- Workflows must not invoke live Eitaa, Telegram, or other external publisher calls.
+- The Ruff workflow may calculate safe fixes in its ephemeral runner workspace, but it must not commit or push changes.
+- Live production publication remains an operational Termux gate and is never part of GitHub Actions.
+
+The regression suite enforces this boundary for every workflow file so a future workflow cannot silently reintroduce credentials or live publishing.
+
 ## Integration
 
 - [ ] Feed ingestion reaches processing pipeline
