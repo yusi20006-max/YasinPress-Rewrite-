@@ -1,11 +1,13 @@
-import pytest
-from datetime import datetime, timezone, timedelta
-from yasinpress.core.helpers import format_persian_datetime, _get_timezone, TEHRAN_TZ
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfoNotFoundError
+
+import pytest
+
+from yasinpress.core.helpers import TEHRAN_TZ, _get_timezone, format_persian_datetime
 
 
 def test_normal_tehran_conversion():
-    dt = datetime(2026, 8, 11, 14, 30, tzinfo=timezone.utc)
+    dt = datetime(2026, 8, 11, 14, 30, tzinfo=UTC)
     out = format_persian_datetime(dt)
     # Jalali equivalent of 2026-08-11 is 1405-05-20
     assert out.startswith("1405/05/20")
@@ -13,7 +15,7 @@ def test_normal_tehran_conversion():
 
 
 def test_jalali_conversion_integrity():
-    dt = datetime(2024, 3, 19, 10, 0, tzinfo=timezone.utc)
+    dt = datetime(2024, 3, 19, 10, 0, tzinfo=UTC)
     out = format_persian_datetime(dt)
     assert "/" in out
     assert " - " in out
@@ -25,7 +27,7 @@ def test_timezone_fallback():
 
 
 def test_caller_provided_timezone():
-    dt = datetime(2026, 8, 11, 14, 30, tzinfo=timezone.utc)
+    dt = datetime(2026, 8, 11, 14, 30, tzinfo=UTC)
     out = format_persian_datetime(dt, "UTC")
     assert out.endswith("14:30")
 
@@ -36,6 +38,6 @@ def test_missing_timezone_database_behavior():
 
 
 def test_eitaa_timestamp_integrity():
-    dt = datetime(2026, 8, 11, 14, 30, tzinfo=timezone.utc)
+    dt = datetime(2026, 8, 11, 14, 30, tzinfo=UTC)
     out = format_persian_datetime(dt)
     assert " - " in out
