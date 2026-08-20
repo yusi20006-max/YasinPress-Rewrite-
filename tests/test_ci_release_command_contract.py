@@ -26,6 +26,10 @@ FORBIDDEN_WORKFLOW_TOKENS = (
 )
 
 
+RELEASE_STATUS = Path("docs/RELEASE_STATUS.md")
+RELEASE_EVIDENCE = Path("docs/PRODUCTION_CERTIFICATION_EVIDENCE.md")
+
+
 def test_ci_contains_all_canonical_release_commands():
     workflow = (WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8")
     assert all(command in workflow for command in CANONICAL_COMMANDS)
@@ -52,3 +56,34 @@ def test_ruff_workflow_is_non_mutating():
     assert "contents: read" in workflow
     assert "git push" not in workflow
     assert "git commit" not in workflow
+
+
+def test_release_status_references_all_merged_release_hardening():
+    status = RELEASE_STATUS.read_text(encoding="utf-8")
+    assert "PR #154" in status
+    assert "PR #156" in status
+    assert "PR #158" in status
+    assert "HARDEN-13" in status
+    assert "**GREEN**" in status
+    assert "production certification" in status.lower()
+
+
+def test_release_status_keeps_operational_gate_separate():
+    status = RELEASE_STATUS.read_text(encoding="utf-8")
+    evidence = RELEASE_EVIDENCE.read_text(encoding="utf-8")
+
+    assert "FINAL / GREEN" in status
+    assert "manual production gate" in status
+    assert "manual Eitaa smoke-test result" in status
+    assert "credential values must never be exposed" in status
+    assert "never calls an external publisher" in evidence
+
+
+def test_release_status_does_not_claim_final_green_without_operational_result():
+    status = RELEASE_STATUS.read_text(encoding="utf-8")
+    decision = next(
+        line for line in status.splitlines() if line.startswith("**Decision:**")
+    )
+    assert "production certification pending" in decision
+    assert "FINAL / GREEN" in status
+    assert "remaining functional release blocker is operational production certification" in status
