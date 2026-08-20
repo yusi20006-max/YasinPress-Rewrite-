@@ -31,5 +31,4 @@ ignore = ["BLE001", "RUF012", "DTZ001"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-[project.optional-dependencies]
-timezone = ["tzdata>=2024.1"]
+
