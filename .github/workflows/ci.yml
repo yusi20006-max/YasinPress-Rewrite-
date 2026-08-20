@@ -34,5 +34,7 @@ jobs:
         run: python -m pytest -q
       - name: Run Ruff
         run: python -m ruff check .
+      - name: Scan repository for obvious secret exposure
+        run: python scripts/secret_exposure_scan.py
       - name: Verify CLI startup contract
         run: python -m yasinpress.cli.main --help
