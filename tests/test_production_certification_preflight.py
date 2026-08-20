@@ -1,13 +1,13 @@
 import importlib.util
-import os
 from pathlib import Path
-
 
 SCRIPT = Path("scripts/production_certification_preflight.py")
 
 
 def load_module():
-    spec = importlib.util.spec_from_file_location("production_certification_preflight", SCRIPT)
+    spec = importlib.util.spec_from_file_location(
+        "production_certification_preflight", SCRIPT
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
