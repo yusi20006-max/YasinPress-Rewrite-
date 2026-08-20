@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 SKIP_PATHS = {
@@ -18,14 +17,17 @@ PATTERNS = (
     ("telegram_bot_token", re.compile(r"\b\d{8,12}:[A-Za-z0-9_-]{30,}\b")),
     (
         "bearer_token",
-        re.compile(r"\bAuthorization\s*:\s*Bearer\s+[A-Za-z0-9._-]{20,}", re.I),
+        re.compile(
+            r"\bAuthorization\s*:\s*Bearer\s+[A-Za-z0-9._-]{20,}",
+            re.IGNORECASE,
+        ),
     ),
     (
         "eitaa_token_assignment",
         re.compile(
             r"\bYASINPRESS_EITAA_TOKEN\s*=\s*(?!['\"]?\s*(?:$|#|\$\{|<|change-me))"
             r"['\"]?[A-Za-z0-9._-]{20,}['\"]?",
-            re.I,
+            re.IGNORECASE,
         ),
     ),
     (
@@ -33,7 +35,7 @@ PATTERNS = (
         re.compile(
             r"\b(?:api[_-]?key|secret[_-]?key|access[_-]?token)\s*[:=]\s*"
             r"['\"]?[A-Za-z0-9._-]{24,}['\"]?",
-            re.I,
+            re.IGNORECASE,
         ),
     ),
 )
