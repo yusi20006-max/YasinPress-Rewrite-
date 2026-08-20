@@ -11,7 +11,6 @@ requires-python = ">=3.13"
 license = "MIT"
 authors = [{name = "YasinPress maintainers"}]
 
-# اصلی‌ترین وابستگی‌ها
 dependencies = [
     "PyYAML>=6.0.2",
     "httpx>=0.27.0",
