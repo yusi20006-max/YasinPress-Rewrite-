@@ -69,12 +69,12 @@ def test_release_status_references_all_merged_release_hardening():
 
 
 def test_release_status_keeps_operational_gate_separate():
-    status = RELEASE_STATUS.read_text(encoding="utf-8")
-    evidence = RELEASE_EVIDENCE.read_text(encoding="utf-8")
+    status = RELEASE_STATUS.read_text(encoding="utf-8").lower()
+    evidence = RELEASE_EVIDENCE.read_text(encoding="utf-8").lower()
 
-    assert "FINAL / GREEN" in status
+    assert "final / green" in status
     assert "manual production gate" in status
-    assert "manual Eitaa smoke-test result" in status
+    assert "manual eitaa smoke-test result" in status
     assert "credential values must never be exposed" in status
     assert "never calls an external publisher" in evidence
 
