@@ -5,6 +5,7 @@ from yasinpress.ai.config import AIConfig
 from yasinpress.ai.factory import create_ai_provider
 from yasinpress.ai.openai_compatible import HTTPXOpenAICompatibleClient, OpenAICompatibleProvider
 from yasinpress.ai.resilient import ResilientAIProvider
+from yasinpress.config.runtime import RuntimeConfig
 from yasinpress.runtime_factory import build_runtime
 
 
@@ -41,11 +42,7 @@ def test_runtime_builds_ai_from_environment_when_not_explicitly_injected(monkeyp
     monkeypatch.setenv("YASINPRESS_AI_PROVIDER", "yasin-ai")
     monkeypatch.setenv("YASINPRESS_AI_MODEL", "test-model")
 
-    runtime = build_runtime(
-        config=__import__("yasinpress.config.runtime", fromlist=["RuntimeConfig"]).RuntimeConfig(
-            database_path=str(tmp_path / "runtime.db")
-        )
-    )
+    runtime = build_runtime(config=RuntimeConfig(database_path=str(tmp_path / "runtime.db")))
     try:
         assert isinstance(runtime.application.processing.ai, ResilientAIProvider)
         assert runtime.application.processing.ai.provider.model == "test-model"
@@ -53,12 +50,10 @@ def test_runtime_builds_ai_from_environment_when_not_explicitly_injected(monkeyp
         runtime.close()
 
 
-def test_runtime_preserves_explicit_ai_provider(monkeypatch, tmp_path):
+def test_runtime_preserves_explicit_ai_provider(tmp_path):
     sentinel = object()
     runtime = build_runtime(
-        config=__import__("yasinpress.config.runtime", fromlist=["RuntimeConfig"]).RuntimeConfig(
-            database_path=str(tmp_path / "runtime.db")
-        ),
+        config=RuntimeConfig(database_path=str(tmp_path / "runtime.db")),
         ai=sentinel,
     )
     try:
