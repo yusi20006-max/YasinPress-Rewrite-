@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Credential-safe production certification preflight for the Termux target."""
 
 from __future__ import annotations
@@ -10,7 +9,6 @@ import platform
 import shutil
 import subprocess
 from importlib.metadata import PackageNotFoundError, version
-from pathlib import Path
 
 SCHEMA_VERSION = 1
 SECRET_ENV_VARS = (
@@ -83,7 +81,9 @@ def build_report(check_services: bool = True) -> dict[str, object]:
         "ruff_version": command_output(["ruff", "--version"]),
     }
 
-    service_ready = all(item.get("running") for item in services.values()) if services else True
+    service_ready = (
+        all(item.get("running") for item in services.values()) if services else True
+    )
     repository_ready = bool(checks["git_commit"] and checks["yasinpress_version"])
 
     return {
