@@ -9,7 +9,6 @@ import os
 import platform
 import shutil
 import subprocess
-import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
@@ -74,11 +73,12 @@ def build_report(check_services: bool = True) -> dict[str, object]:
         else {}
     )
 
+    prefix = os.environ.get("PREFIX", "")
     checks = {
         "git_commit": git_commit(),
         "python_version": platform.python_version(),
         "platform": platform.platform(),
-        "termux": bool(os.environ.get("PREFIX")) and "/com.termux/" in os.environ.get("PREFIX", ""),
+        "termux": bool(prefix) and "/com.termux/" in prefix,
         "yasinpress_version": package_version("yasinpress-rewrite"),
         "ruff_version": command_output(["ruff", "--version"]),
     }
@@ -99,7 +99,11 @@ def build_report(check_services: bool = True) -> dict[str, object]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit machine-readable JSON",
+    )
     parser.add_argument(
         "--no-services",
         action="store_true",
@@ -114,7 +118,10 @@ def main() -> int:
         print(f"schema_version: {report['schema_version']}")
         print(f"mode: {report['mode']}")
         print(f"live_publisher_invoked: {report['live_publisher_invoked']}")
-        print(f"ready_for_manual_operational_gate: {report['ready_for_manual_operational_gate']}")
+        print(
+            "ready_for_manual_operational_gate: "
+            f"{report['ready_for_manual_operational_gate']}"
+        )
         print(json.dumps(report["checks"], ensure_ascii=False, indent=2, sort_keys=True))
         print(json.dumps(report["credentials"], ensure_ascii=False, indent=2, sort_keys=True))
         print(json.dumps(report["services"], ensure_ascii=False, indent=2, sort_keys=True))
