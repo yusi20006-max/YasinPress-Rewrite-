@@ -22,6 +22,8 @@
 - FINAL-09 release-gate consistency hardening merged through PR #135
 - FINAL-10 CI/release command parity merged through PR #137
 - HARDEN-12 standalone live Eitaa helper removed through PR #145
+- POST-RELEASE-05 CI automation hardening merged through PR #154
+- POST-RELEASE-06 credential-safe production certification preflight and evidence schema added
 
 ## Final certification
 
@@ -33,9 +35,17 @@ The repository code gate is distinct from production certification. Passing repo
 
 ### Remaining operational gate
 
+Use `docs/PRODUCTION_CERTIFICATION_EVIDENCE.md` and run:
+
+```sh
+python scripts/production_certification_preflight.py --json
+```
+
+Then perform the manual production gate in the target Termux environment.
+
 - Production smoke test and final certification in the target Termux environment.
 - The production Eitaa smoke test requires configured runtime credentials supplied only through the environment and must not expose or commit secrets.
-- Record the exact commit SHA, Python/Termux/Ruff versions, automated test count, and operational result before declaring `FINAL / GREEN`.
+- Record the exact commit SHA, Python/Termux/Ruff versions, automated test count, service states, and operational result before declaring `FINAL / GREEN`.
 
 ### Non-blocking administrative debt
 
