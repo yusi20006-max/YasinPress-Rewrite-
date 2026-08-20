@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 CANONICAL_COMMANDS = (
     "python -m compileall -q yasinpress tests",
     "python -m pytest -q",
