@@ -3,10 +3,6 @@ from datetime import UTC, datetime, timedelta
 from yasinpress.database.models import Article
 from yasinpress.publishing.eitaa import EitaaPublisher
 
-_LT = chr(38) + "lt;"
-_GT = chr(38) + "gt;"
-_AMP = chr(38) + "amp;"
-
 
 def article(*, ai_modified: bool = False, title: str = "خبر آزمایشی", content: str = "متن خبر") -> Article:
     return Article(
@@ -45,20 +41,45 @@ def test_render_marks_only_ai_modified_articles():
 
 
 def test_render_uses_breaking_header_for_fresh_severe_news():
+    # Eitaa uses Markdown (*bold*), NOT HTML (<b>)
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(title="فوری: زلزله شدید"))
-    assert rendered.startswith("<b>خبر فوری</b> 🚨\n\n")
-    assert "<b>فوری: زلزله شدید</b>" in rendered
+    assert rendered.startswith("*خبر فوری* 🚨\n\n")
+    assert "*فوری: زلزله شدید*" in rendered
     assert "منبع: example.com" in rendered
     assert "https://" not in rendered
     assert "<a " not in rendered
+    # HTML leakage regression guard
+    assert "<b>" not in rendered
+    assert "</b>" not in rendered
 
 
-def test_render_escapes_article_content():
+def test_no_html_tags_in_any_rendered_output():
+    """Regression: HTML tags must never appear in Eitaa payload text."""
     publisher = EitaaPublisher(token="token", channel="channel")
-    rendered = publisher.render(article(title="A < B", content="x > y & z"))
-    assert "A " + _LT + " B" in rendered
-    assert "x " + _GT + " y " + _AMP + " z" in rendered
+    for a in [
+        article(),
+        article(ai_modified=True),
+        article(title="فوری: زلزله شدید"),
+        article(title="<b>خبر فوری</b> `CODE`"),
+        article(content="<b>unsafe</b> & <i>italic</i>"),
+    ]:
+        rendered = publisher.render(a)
+        assert "<b>" not in rendered, f"<b> leaked: {rendered!r}"
+        assert "</b>" not in rendered, f"</b> leaked: {rendered!r}"
+        assert "<i>" not in rendered, f"<i> leaked: {rendered!r}"
+        assert "</i>" not in rendered, f"</i> leaked: {rendered!r}"
+
+
+def test_render_strips_html_from_content():
+    # Content HTML must be stripped, not passed through
+    publisher = EitaaPublisher(token="token", channel="channel")
+    rendered = publisher.render(article(content="x > y & z"))
+    # Angle-bracket entities should not appear (no HTML escaping of plain text)
+    assert "&gt;" not in rendered
+    assert "&amp;" not in rendered
+    # The plain values should appear directly
+    assert "x > y & z" in rendered
 
 
 def test_mixed_script_title_remains_plain_and_deterministic():
@@ -73,9 +94,9 @@ def test_render_removes_title_html_and_markdown_artifacts():
     publisher = EitaaPublisher(token="token", channel="channel")
     rendered = publisher.render(article(title="<b>خبر فوری</b> `CODE`"))
     assert "خبر فوری" in rendered
-    assert "<b><b>" not in rendered
+    # No double-bold wrapping
+    assert "**" not in rendered.replace("\\*", "")
     assert "CODE" not in rendered
-    assert "`" not in rendered
 
 
 def test_time_and_ai_blocks_are_persian_led():
@@ -86,4 +107,7 @@ def test_time_and_ai_blocks_are_persian_led():
     assert not any(
         line.lstrip().startswith("🕐") for line in rendered.splitlines() if line.strip()
     )
-    assert "<i>بازنویسی‌شده با هوش مصنوعی</i> 🤖" in rendered
+    # AI marker uses Markdown italic (_text_), not HTML <i>
+    assert "_بازنویسی‌شده با هوش مصنوعی_ 🤖" in rendered
+    assert "<i>" not in rendered
+    assert "</i>" not in rendered

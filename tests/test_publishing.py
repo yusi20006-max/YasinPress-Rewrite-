@@ -67,9 +67,14 @@ def test_eitaa_publisher_sends_message(monkeypatch):
     assert result.external_id == "42"
     assert captured["url"] == "https://eitaayar.ir/api/bot-token/sendMessage"
     assert captured["data"]["chat_id"] == "123"
-    assert "<b>title</b>" in captured["data"]["text"]
+    # Eitaa uses Markdown (*bold*), NOT HTML (<b>)
+    assert "*title*" in captured["data"]["text"]
+    assert "<b>" not in captured["data"]["text"]
+    assert "</b>" not in captured["data"]["text"]
     assert "body" in captured["data"]["text"]
     assert "منبع: example.com" in captured["data"]["text"]
+    # parse_mode must NOT be set (HTML mode causes raw tag display in Eitaa)
+    assert "parse_mode" not in captured["data"]
 
 
 def test_eitaa_publisher_reports_api_rejection(monkeypatch):
