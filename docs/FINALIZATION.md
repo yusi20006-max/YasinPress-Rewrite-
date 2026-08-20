@@ -2,7 +2,9 @@
 
 ## Release state
 
-YasinPress `1.0.0` has a **GREEN repository code gate**. Final production certification remains an explicit operational gate.
+YasinPress `1.0.0` has a **GREEN repository code gate**. The repository code gate GREEN state is explicit. Final production certification remains an explicit operational gate.
+
+The repository code gate is GREEN and the remaining release blocker is operational verification.
 
 ### Completed
 
@@ -16,6 +18,7 @@ YasinPress `1.0.0` has a **GREEN repository code gate**. Final production certif
 - Python 3.13 authoritative CI configuration
 - Runtime Worker and persistent publication queue certification
 - Repository-side runtime, freshness, idempotency, and no-external-I/O integration coverage
+- Credential-free, read-only GitHub Actions automation boundary
 
 ### Operational certification pending
 
