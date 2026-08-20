@@ -19,9 +19,18 @@ python -m yasinpress.cli.main --help
 - [ ] `python -m compileall -q yasinpress tests` passes
 - [ ] `python -m pytest -q` passes
 - [ ] `ruff check .` passes
+- [ ] `python scripts/secret_exposure_scan.py` passes
 - [ ] `python -m yasinpress.cli.main --help` passes
 - [ ] Runtime Worker and persistent publication queue remain distinct
 - [ ] No repository test requires production credentials or live external publishing
+
+## Secret exposure boundary
+
+The repository includes a supplementary local secret-exposure regression gate at `scripts/secret_exposure_scan.py`.
+
+It scans tracked text files for obvious hard-coded credential patterns, including private keys, OpenAI-style keys, GitHub tokens, Telegram bot tokens, bearer tokens, Eitaa token assignments, and generic API/secret/access-token assignments. It intentionally does not replace GitHub secret scanning and does not contact any external service.
+
+Environment-variable names and empty/placeholder examples are safe and are not treated as production credentials.
 
 ## CI automation boundary
 
