@@ -1,0 +1,5 @@
+#!/data/data/com.termux/files/usr/bin/sh
+
+cd "$HOME/YasinPress-Rewrite-" || exit 1
+
+exec "$HOME/YasinPress-Rewrite-/.venv/bin/yasinpress" run
