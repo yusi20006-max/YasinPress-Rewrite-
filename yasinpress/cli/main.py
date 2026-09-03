@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import argparse
 import getpass
 import os
 from pathlib import Path
 
+from yasinpress.cli.parser import build_parser
 from yasinpress.config.runtime import RuntimeConfig
 from yasinpress.health import check_database
 from yasinpress.runtime_factory import build_runtime
@@ -139,16 +139,10 @@ def _startup_feed_setup() -> None:
 
 def main(argv: list[str] | None = None) -> int:
     """Run a YasinPress CLI command."""
-    parser = argparse.ArgumentParser(prog="yasinpress")
-    parser.add_argument(
-        "command",
-        choices=["status", "version", "config", "health", "run"],
-        nargs="?",
-        default="status",
-    )
+    parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "version":
+    if args.version or args.command == "version":
         from yasinpress import __version__
 
         print(__version__)
