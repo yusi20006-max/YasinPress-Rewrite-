@@ -27,6 +27,14 @@
 - HARDEN-13 repository secret-exposure regression gate merged through PR #158
 - FINAL-14 operational production certification completed and closed
 
+## Maintenance boundary
+
+YasinPress is **FINAL / GREEN** and its planned implementation work is complete.
+
+No new implementation work is required for the current certified scope. Future work should be opened only for **new capabilities/expansion**, or for a genuine bug, security issue, compatibility regression, or required maintenance change.
+
+The existing certified behavior must not be changed merely for refactoring or speculative improvement.
+
 ## Final certification
 
 ### Repository code gate
