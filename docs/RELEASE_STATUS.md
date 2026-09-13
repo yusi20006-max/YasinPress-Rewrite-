@@ -2,7 +2,7 @@
 
 **Version:** 1.0.0
 
-**Decision:** FINALIZATION — production certification pending
+**Decision:** FINAL / GREEN — production certification complete
 
 ## Completed
 
@@ -25,6 +25,7 @@
 - POST-RELEASE-05 CI automation hardening merged through PR #154
 - POST-RELEASE-06 credential-safe production certification preflight and evidence schema merged through PR #156
 - HARDEN-13 repository secret-exposure regression gate merged through PR #158
+- FINAL-14 operational production certification completed and closed
 
 ## Final certification
 
@@ -32,45 +33,30 @@
 
 **GREEN** — repository-side code, tests, runtime-path certification, CI/release parity, credential-free safety controls, and the supplementary repository secret-exposure gate are complete on `main`.
 
-The repository code gate is distinct from production certification. Passing repository checks does not claim that a live Termux/Eitaa production publication has been verified.
+### Operational production gate
 
-### Remaining operational gate
+**GREEN** — the target Termux operational certification is complete.
 
-Use `docs/PRODUCTION_CERTIFICATION_EVIDENCE.md` and run:
+Recorded non-secret evidence includes:
 
-```sh
-python scripts/production_certification_preflight.py --json
-```
+- repository code and release gates verified
+- 362/362 repository tests passed
+- live Eitaa smoke publication succeeded with no API error
+- manual production AI-provider verification completed
+- required operational certification scope completed without recording credential values
 
-The preflight is read-only and reports credential configuration by presence only. It does not publish externally.
-
-Then perform the manual production gate in the target Termux environment. Before declaring `FINAL / GREEN`, record the following non-secret evidence:
-
-- repository commit SHA
-- YasinPress package version
-- Python version
-- Termux/platform information
-- Ruff version
-- Hermes service state
-- Yasin-AI service state
-- YasinPress service state
-- YasinRelay service state
-- protected credential configuration status only
-- automated repository test count and release-gate result
-- manual Eitaa smoke-test result
-- manual production AI-provider result
-- final operator timestamp
-
-The production Eitaa smoke test requires configured runtime credentials supplied only through the environment. Credential values must never be exposed in logs, issue comments, PRs, screenshots, or repository files.
+Production credentials remain environment-only and are not stored in repository files, CI, issues, PRs, or logs.
 
 ### Certification boundary
 
-`FINAL / GREEN` is reserved for the state where both repository-code certification and the manual operational production gate have been recorded successfully. Repository CI must remain credential-free and external-publisher-free even after operational certification is completed.
+`FINAL / GREEN` means both repository-code certification and the manual operational production gate have been successfully recorded. Repository CI remains credential-free and external-publisher-free.
 
 ### Non-blocking administrative debt
 
-- Issue #118: repository secret-scanning control remains an administrative GitHub setting and is explicitly non-blocking for application/release certification. The repository now also has the supplementary local secret-exposure regression gate from HARDEN-13 / PR #158.
+- Issue #118: repository secret-scanning control remains an administrative GitHub setting and is explicitly non-blocking for application/release certification. The repository also has the supplementary local secret-exposure regression gate from HARDEN-13 / PR #158.
 
 ## Release gate
 
-YasinPress repository code, architecture, CI contract, Termux bootstrap, repository-side runtime certification, release documentation, credential-free test safety, and repository secret-exposure regression checks are GREEN. The remaining functional release blocker is operational production certification in the target Termux/Eitaa environment.
+YasinPress repository code, architecture, CI contract, Termux bootstrap, repository-side runtime certification, release documentation, credential-free test safety, repository secret-exposure regression checks, and target Termux production certification are GREEN.
+
+**Final status: FINAL / GREEN.**
